@@ -1,9 +1,18 @@
-import { Component, signal } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
-import { AuthService } from '../../core/auth.service';
+import { ActivatedRoute, Router } from '@angular/router';
+import { AuthService, EtatSSO } from '../../core/auth.service';
 import { IconComponent } from '../../shared/icon.component';
+
+/** Messages des échecs renvoyés par le retour SSO, en clair. */
+const MESSAGES_ERREUR: Record<string, string> = {
+  sso_echec: "La connexion Microsoft a échoué. Réessayez, ou utilisez votre "
+    + "identifiant et votre mot de passe.",
+  profil_echec: "Connexion Microsoft réussie, mais votre profil OSEOR n'a pas "
+    + "pu être chargé. Signalez-le à l'administrateur.",
+};
+
 
 @Component({
   selector: 'app-login',
@@ -35,6 +44,20 @@ import { IconComponent } from '../../shared/icon.component';
         <div class="alerte err"><app-icon name="close" [size]="16"/>{{ erreur() }}</div>
       }
 
+      @if (sso().actif) {
+        <button type="button" class="btn-microsoft" (click)="connexionMicrosoft()">
+          <svg viewBox="0 0 23 23" width="18" height="18" aria-hidden="true">
+            <rect x="1" y="1" width="10" height="10" fill="#f25022"/>
+            <rect x="12" y="1" width="10" height="10" fill="#7fba00"/>
+            <rect x="1" y="12" width="10" height="10" fill="#00a4ef"/>
+            <rect x="12" y="12" width="10" height="10" fill="#ffb900"/>
+          </svg>
+          Se connecter avec Microsoft
+        </button>
+
+        <div class="separateur"><span>ou</span></div>
+      }
+
       <form (ngSubmit)="seConnecter()">
         <div class="champ">
           <label>Identifiant</label>
@@ -55,6 +78,22 @@ import { IconComponent } from '../../shared/icon.component';
   </div>
   `,
   styles: [`
+    .btn-microsoft {
+      width: 100%; display: flex; align-items: center; justify-content: center;
+      gap: .65rem; padding: .7rem 1rem; margin-bottom: .2rem;
+      background: #fff; color: #3b3a39; font-size: .9rem; font-weight: 600;
+      font-family: inherit; border: 1px solid #8c8c8c; border-radius: 8px;
+      cursor: pointer; transition: background var(--t), border-color var(--t);
+    }
+    .btn-microsoft:hover { background: #f3f2f1; border-color: #5e5e5e; }
+    .separateur {
+      display: flex; align-items: center; gap: .8rem;
+      margin: 1.1rem 0; color: var(--txt-3); font-size: .78rem;
+    }
+    .separateur::before, .separateur::after {
+      content: ''; flex: 1; height: 1px; background: var(--bord);
+    }
+
     .ecran { min-height: 100vh; display: grid; grid-template-columns: 1fr 420px;
       background: radial-gradient(120% 120% at 0% 0%, #1e40af 0%, #1e3a8a 55%, #16306b 100%);
       position: relative; overflow: hidden; }
@@ -88,13 +127,37 @@ import { IconComponent } from '../../shared/icon.component';
     }
   `],
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   username = '';
   password = '';
   chargement = signal(false);
   erreur = signal('');
+  sso = signal<EtatSSO>({ actif: false, url_connexion: '' });
 
-  constructor(private auth: AuthService, private router: Router) {}
+  constructor(
+    private auth: AuthService,
+    private route: ActivatedRoute,
+    private router: Router,
+  ) {}
+
+  ngOnInit(): void {
+    const echec = this.route.snapshot.queryParamMap.get('erreur');
+    if (echec) {
+      this.erreur.set(MESSAGES_ERREUR[echec] ?? MESSAGES_ERREUR['sso_echec']);
+    }
+
+    // Sans réponse — instance sans SSO, API momentanément muette — on s'en
+    // tient au formulaire : il fonctionne dans tous les cas.
+    this.auth.etatSSO().subscribe({
+      next: (etat) => this.sso.set(etat),
+      error: () => this.sso.set({ actif: false, url_connexion: '' }),
+    });
+  }
+
+  connexionMicrosoft(): void {
+    const url = this.sso().url_connexion;
+    if (url) this.auth.lancerSSO(url);
+  }
 
   seConnecter(): void {
     this.erreur.set('');

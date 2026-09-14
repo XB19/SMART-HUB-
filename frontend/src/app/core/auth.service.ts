@@ -4,6 +4,11 @@ import { Observable, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Utilisateur } from './models';
 
+export interface EtatSSO {
+  actif: boolean;
+  url_connexion: string;
+}
+
 const ACCESS = 'oseor_access';
 const REFRESH = 'oseor_refresh';
 
@@ -33,10 +38,41 @@ export class AuthService {
     );
   }
 
-  /** Stocke une paire de tokens reçus via SSO (ex. callback Azure AD). */
+  /** Stocke une paire de jetons obtenue autrement que par le formulaire. */
   stockerTokens(access: string, refresh: string): void {
     localStorage.setItem(ACCESS, access);
     localStorage.setItem(REFRESH, refresh);
+  }
+
+  /**
+   * Le SSO Microsoft est-il configuré sur cette instance ?
+   *
+   * La page de connexion le demande avant d'afficher le bouton : en
+   * proposer un qui mènerait à une erreur de configuration serait pire
+   * que de ne pas le proposer.
+   */
+  etatSSO(): Observable<EtatSSO> {
+    return this.http.get<EtatSSO>(`${this.api}/auth/sso/etat/`);
+  }
+
+  /**
+   * Échange le code du retour Microsoft contre une paire de jetons.
+   *
+   * Le code voyage dans l'URL, les jetons non : ils s'inscriraient sinon
+   * dans l'historique du navigateur et les journaux du serveur.
+   */
+  echangerCodeSSO(code: string): Observable<any> {
+    return this.http
+      .post<any>(`${this.api}/auth/sso/echange/`, { code })
+      .pipe(tap((r) => this.stockerTokens(r.access, r.refresh)));
+  }
+
+  /**
+   * Part sur Microsoft. Sortie du contexte Angular : c'est une vraie
+   * navigation, le routeur n'a rien à y faire.
+   */
+  lancerSSO(urlConnexion: string): void {
+    window.location.href = urlConnexion;
   }
 
   rafraichir(): Observable<any> {

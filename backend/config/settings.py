@@ -392,6 +392,73 @@ if LDAP_SERVER_URI and LDAP_DOMAIN:
 
 
 # =====================================================================
+# Microsoft Entra ID (ex-Azure AD) — authentification SSO (optionnel)
+#
+# Actif dès que les trois identifiants de l'application enregistrée dans
+# Entra sont présents dans .env. Sans eux, rien ne change : la page de
+# connexion n'affiche pas le bouton Microsoft et l'application reste sur
+# l'authentification par mot de passe.
+#
+# À ne pas confondre avec le bloc LDAP ci-dessus, qui vise un Active
+# Directory *sur site* : Entra ID ne parle pas LDAP, les deux intégrations
+# sont distinctes et peuvent coexister.
+#
+# Côté Entra (App registrations) :
+#   - Redirect URI (Web) : {URL_PUBLIQUE}/oidc/callback/
+#   - Certificates & secrets : un secret client
+#   - Token configuration : ajouter le claim `groups` (et `jobTitle` en
+#     claim optionnel) pour que les rôles OSEOR se déduisent tout seuls
+# =====================================================================
+
+AZURE_TENANT_ID = config('AZURE_TENANT_ID', default='')
+AZURE_CLIENT_ID = config('AZURE_CLIENT_ID', default='')
+AZURE_CLIENT_SECRET = config('AZURE_CLIENT_SECRET', default='')
+
+#: URL du frontend Angular — cible de la redirection après le SSO.
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:4200')
+
+ENTRA_ID_ACTIF = bool(AZURE_TENANT_ID and AZURE_CLIENT_ID and AZURE_CLIENT_SECRET)
+
+if ENTRA_ID_ACTIF:
+    INSTALLED_APPS = INSTALLED_APPS + ['mozilla_django_oidc']
+
+    _AUTORITE = f'https://login.microsoftonline.com/{AZURE_TENANT_ID}'
+
+    OIDC_RP_CLIENT_ID = AZURE_CLIENT_ID
+    OIDC_RP_CLIENT_SECRET = AZURE_CLIENT_SECRET
+    OIDC_RP_SIGN_ALGO = 'RS256'
+    OIDC_RP_SCOPES = 'openid email profile'
+
+    OIDC_OP_AUTHORIZATION_ENDPOINT = f'{_AUTORITE}/oauth2/v2.0/authorize'
+    OIDC_OP_TOKEN_ENDPOINT = f'{_AUTORITE}/oauth2/v2.0/token'
+    OIDC_OP_JWKS_ENDPOINT = f'{_AUTORITE}/discovery/v2.0/keys'
+    OIDC_OP_USER_ENDPOINT = 'https://graph.microsoft.com/oidc/userinfo'
+
+    #: Nos vues à nous, chargées par mozilla_django_oidc.urls.
+    OIDC_CALLBACK_CLASS = 'applications.utilisateurs.views_oidc.OseorOIDCCallbackView'
+
+    #: PKCE : recommandé par Microsoft, et gratuit ici.
+    OIDC_USE_PKCE = True
+
+    #: Créer le compte OSEOR à la première connexion. Mettre à False pour
+    #: n'ouvrir l'application qu'aux comptes déjà créés par l'administrateur
+    #: — le filtrage se fait plutôt dans Entra (Enterprise application >
+    #: « User assignment required »), qui refuse alors bien plus tôt.
+    OIDC_CREATE_USER = config('OIDC_CREATE_USER', default=True, cast=bool)
+
+    #: Le SSO ne remplace pas les comptes locaux : l'administration Django
+    #: et les comptes de service continuent de passer par mot de passe, et
+    #: un tenant indisponible ne doit pas fermer l'application à tout le
+    #: monde.
+    AUTHENTICATION_BACKENDS = (
+        ['applications.utilisateurs.oidc.OseorOIDCBackend']
+        + list(globals().get('AUTHENTICATION_BACKENDS', [
+            'django.contrib.auth.backends.ModelBackend',
+        ]))
+    )
+
+
+# =====================================================================
 # Tests : base SQLite en mémoire (rapide, sans Supabase ni Redis)
 # =====================================================================
 

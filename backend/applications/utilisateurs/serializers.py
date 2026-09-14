@@ -54,7 +54,11 @@ class UtilisateurSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "is_active", "source_auth", "photo_profil", "signature")
 
     def get_source_auth(self, obj) -> str:
-        """'SSO' si le compte se connecte via Azure AD, 'LOCAL' sinon."""
+        """
+        'SSO' si le compte n'a pas de mot de passe local — il se connecte
+        par l'annuaire Microsoft, Entra ID ou Active Directory sur site.
+        'LOCAL' sinon.
+        """
         return 'SSO' if not obj.has_usable_password() else 'LOCAL'
 
 

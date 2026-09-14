@@ -1,8 +1,11 @@
 import base64
 import hashlib
+import secrets
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 from django.contrib.auth.models import AbstractUser
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -380,3 +383,88 @@ class ParametreLDAP(models.Model):
     def bind_password(self, valeur: str):
         if valeur:
             self.bind_password_chiffre = Fernet(_cle_chiffrement()).encrypt(valeur.encode()).decode()
+
+class CodeConnexionSSO(models.Model):
+    """
+    Code d'échange à usage unique, remis après une authentification Entra ID.
+
+    Le callback SSO ne peut pas déposer les jetons dans le navigateur : il
+    redirige, et une redirection ne transporte que son URL. Y écrire les
+    JWT les inscrirait dans l'historique du navigateur, dans les journaux
+    nginx et dans l'en-tête `Referer` des pages suivantes — un jeton de
+    rafraîchissement vaut sept jours d'accès. On redirige donc avec ce
+    code, que le frontend échange une seule fois, en POST, contre la paire
+    de jetons.
+
+    Seule l'empreinte est conservée : lire la table ne permet pas de
+    rejouer un code, pas plus que lire `auth_user` ne donne un mot de
+    passe.
+    """
+
+    #: Un code non échangé dans la minute est perdu : le frontend le
+    #: présente dès l'arrivée sur /auth/callback, jamais plus tard.
+    DUREE_VALIDITE = timedelta(minutes=1)
+
+    empreinte = models.CharField(
+        verbose_name="Empreinte du code",
+        max_length=64,
+        unique=True,
+        db_index=True,
+    )
+
+    utilisateur = models.ForeignKey(
+        "utilisateurs.Utilisateur",
+        verbose_name="Utilisateur authentifié",
+        on_delete=models.CASCADE,
+        related_name="codes_sso",
+    )
+
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Code de connexion SSO"
+        verbose_name_plural = "Codes de connexion SSO"
+        ordering = ["-date_creation"]
+
+    def __str__(self):
+        return f"Code SSO de {self.utilisateur} ({self.date_creation:%d/%m/%Y %H:%M})"
+
+    @staticmethod
+    def _empreinte(code: str) -> str:
+        return hashlib.sha256(code.encode()).hexdigest()
+
+    @classmethod
+    def emettre(cls, utilisateur) -> str:
+        """Crée un code et renvoie sa valeur en clair — la seule fois où elle existe."""
+        cls.objects.filter(
+            date_creation__lt=timezone.now() - cls.DUREE_VALIDITE
+        ).delete()
+
+        code = secrets.token_urlsafe(48)
+        cls.objects.create(empreinte=cls._empreinte(code), utilisateur=utilisateur)
+        return code
+
+    @classmethod
+    def consommer(cls, code: str):
+        """
+        Rend l'utilisateur associé, ou None si le code est inconnu, périmé
+        ou déjà utilisé.
+
+        La suppression sert de verrou : sur deux requêtes concurrentes,
+        une seule voit `supprimees == 1`, l'autre repart les mains vides.
+        """
+        if not code:
+            return None
+
+        ligne = cls.objects.filter(empreinte=cls._empreinte(code)).first()
+        if ligne is None:
+            return None
+
+        supprimees, _ = cls.objects.filter(pk=ligne.pk).delete()
+        if not supprimees:
+            return None
+
+        if ligne.date_creation < timezone.now() - cls.DUREE_VALIDITE:
+            return None
+
+        return ligne.utilisateur

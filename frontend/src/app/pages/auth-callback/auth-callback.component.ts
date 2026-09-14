@@ -1,11 +1,13 @@
 /**
- * Page de callback SSO Azure AD.
+ * Retour de l'authentification Microsoft Entra ID.
  *
- * Django redirige ici après auth réussie :
- *   /auth/callback?access=<jwt>&refresh=<jwt>
+ * Django redirige ici après une authentification réussie :
+ *   /auth/callback?code=<code à usage unique>
  *
- * Ce composant récupère les tokens, les stocke et redirige vers le tableau de bord.
- * En cas d'erreur, renvoie vers /connexion avec un message.
+ * Le code est échangé en POST contre la paire de jetons, puis le profil
+ * est chargé. Les jetons eux-mêmes ne transitent jamais par l'URL : ils
+ * s'inscriraient dans l'historique du navigateur, dans les journaux nginx
+ * et dans l'en-tête `Referer` des pages suivantes.
  */
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -65,23 +67,26 @@ export class AuthCallbackComponent implements OnInit {
 
   ngOnInit(): void {
     const params = this.route.snapshot.queryParamMap;
-    const access = params.get('access');
-    const refresh = params.get('refresh');
+    const code = params.get('code');
     const erreur = params.get('erreur');
 
-    if (erreur || !access || !refresh) {
-      this.router.navigate(['/connexion'], {
-        queryParams: { erreur: erreur || 'sso_echec' },
-      });
+    if (erreur || !code) {
+      this.echouer(erreur || 'sso_echec');
       return;
     }
 
-    this.auth.stockerTokens(access, refresh);
-    this.auth.chargerProfil().subscribe({
-      next: () => this.router.navigate(['/tableau-de-bord']),
-      error: () => this.router.navigate(['/connexion'], {
-        queryParams: { erreur: 'profil_echec' },
+    this.auth.echangerCodeSSO(code).subscribe({
+      next: () => this.auth.chargerProfil().subscribe({
+        next: () => this.router.navigate(['/tableau-de-bord']),
+        error: () => this.echouer('profil_echec'),
       }),
+      error: () => this.echouer('sso_echec'),
     });
+  }
+
+  /** Retour au formulaire : le code est brûlé, il faut relancer le SSO. */
+  private echouer(erreur: string): void {
+    this.auth.deconnexion();
+    this.router.navigate(['/connexion'], { queryParams: { erreur } });
   }
 }

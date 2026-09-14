@@ -18,6 +18,14 @@ x-django-env: &django-env
   # Ecoute sur toutes les interfaces du conteneur : lie a 127.0.0.1, le
   # service ne serait joignable ni par nginx ni par le port publie.
   API_HOST: 0.0.0.0
+  # Microsoft Entra ID (SSO). Vides par defaut : sans eux le bouton
+  # Microsoft ne s'affiche pas et l'application reste sur le mot de passe.
+  AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+  AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
+  AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
+  # Destination apres une connexion Microsoft reussie. Derriere nginx, le
+  # frontend et l'API partagent la meme origine.
+  FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
 
 services:
   db:
