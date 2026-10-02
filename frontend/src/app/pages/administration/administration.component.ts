@@ -29,7 +29,7 @@ import { DatesNaissanceService, LigneDateNaissance } from '../../core/gestion.se
         }
       </div>
       <p class="carte-sous-titre">
-        Connexion utilisée par le bouton « Synchroniser depuis Azure AD » de la page
+        Connexion utilisée par le bouton « Synchroniser depuis Active Directory » de la page
         Utilisateurs, pour importer/mettre à jour les comptes depuis l'annuaire
         Active Directory <strong>de l'entreprise</strong> (LDAP). Peu importe où
         l'application est hébergée (poste local ou serveur en ligne) : ce qui compte,

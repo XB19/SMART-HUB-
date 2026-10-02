@@ -24,3 +24,8 @@ celery==5.6.3
 redis==6.4.0
 # Horaires stockes en base et modifiables depuis l'admin Django.
 django-celery-beat==2.9.0
+
+# Authentification Microsoft Entra ID (OpenID Connect). Inactive tant que
+# AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET ne sont pas
+# renseignes : l'application reste alors sur le mot de passe.
+mozilla-django-oidc==4.0.1

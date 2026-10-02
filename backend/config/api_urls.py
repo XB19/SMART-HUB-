@@ -9,6 +9,7 @@ from rest_framework_simplejwt.views import (
 
 from applications.utilisateurs.api import (
     UtilisateurViewSet, MoiView, ParametreLDAPView, TesterConnexionLDAPView,
+    EtatSSOView, EchangeCodeSSOView,
 )
 from applications.filiales.api import FilialeViewSet, ServiceViewSet
 from applications.salles.api import SalleViewSet
@@ -68,6 +69,11 @@ urlpatterns = [
     path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/me/", MoiView.as_view(), name="auth_me"),
+
+    # Microsoft Entra ID : la page de connexion demande si le SSO est
+    # disponible, puis échange le code du retour contre des JWT.
+    path("auth/sso/etat/", EtatSSOView.as_view(), name="sso_etat"),
+    path("auth/sso/echange/", EchangeCodeSSOView.as_view(), name="sso_echange"),
 
     path("parametres/ldap/", ParametreLDAPView.as_view(), name="parametres_ldap"),
     path("parametres/ldap/tester/", TesterConnexionLDAPView.as_view(), name="parametres_ldap_tester"),

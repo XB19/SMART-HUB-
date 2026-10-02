@@ -53,6 +53,13 @@ const routesModulesMetier: Routes = MODULES_MOYENS_GENERAUX.map((m) => {
 
 export const routes: Routes = [
   { path: 'connexion', component: LoginComponent },
+  // Retour d'Entra ID. Hors du shell et sans garde : on arrive ici
+  // précisément parce qu'on n'est pas encore connecté.
+  {
+    path: 'auth/callback',
+    loadComponent: () =>
+      import('./pages/auth-callback/auth-callback.component').then((m) => m.AuthCallbackComponent),
+  },
   {
     path: '',
     component: ShellComponent,

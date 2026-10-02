@@ -1,13 +1,16 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.urls import reverse
 from rest_framework import viewsets, generics, permissions
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from config.permissions import EstAdministrateur
 from applications.journalisation.services import enregistrer_action
-from .models import ParametreLDAP
+from .models import CodeConnexionSSO, ParametreLDAP
 from .serializers import (
     DatesNaissanceSerializer,
     UtilisateurSerializer,
@@ -275,3 +278,62 @@ class TesterConnexionLDAPView(APIView):
             )}, status=502)
 
         return Response({'detail': f'Connexion réussie ({nb} entrée(s) trouvée(s) sur ce filtre de test).'})
+
+
+# =====================================================================
+# Microsoft Entra ID (SSO)
+# =====================================================================
+
+class EtatSSOView(APIView):
+    """
+    Le SSO est-il configuré sur cette instance ?
+
+    Interrogée par la page de connexion avant d'afficher « Se connecter
+    avec Microsoft » : proposer un bouton qui mènerait à une erreur de
+    configuration serait pire que de ne pas le proposer du tout.
+
+    Ouverte sans authentification — c'est la page de connexion qui la
+    consulte — et ne divulgue aucun identifiant de tenant.
+    """
+
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        return Response({
+            'actif': bool(getattr(settings, 'ENTRA_ID_ACTIF', False)),
+            'url_connexion': reverse('oidc_authentication_init')
+            if getattr(settings, 'ENTRA_ID_ACTIF', False) else '',
+        })
+
+
+class EchangeCodeSSOView(APIView):
+    """
+    Échange le code à usage unique du retour Entra contre une paire de JWT.
+
+    C'est ce qui évite de faire transiter les jetons dans l'URL de
+    redirection, où ils resteraient inscrits dans l'historique et les
+    journaux du serveur.
+    """
+
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        utilisateur = CodeConnexionSSO.consommer(request.data.get('code', ''))
+
+        if utilisateur is None:
+            return Response(
+                {'detail': "Code de connexion invalide ou expiré. "
+                           "Relancez la connexion Microsoft."},
+                status=400,
+            )
+
+        if not (utilisateur.actif and utilisateur.is_active):
+            return Response({'detail': "Ce compte est désactivé."}, status=403)
+
+        refresh = RefreshToken.for_user(utilisateur)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+        })

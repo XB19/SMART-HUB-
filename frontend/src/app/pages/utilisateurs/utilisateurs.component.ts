@@ -22,7 +22,7 @@ interface ResultatSync {
       <p class="sous-titre">{{ utilisateurs().length }} compte(s) enregistré(s)</p>
     </div>
     <div class="actions-entete">
-      <!-- Sync Azure AD -->
+      <!-- Synchronisation depuis l'Active Directory sur site (LDAP) -->
       <button class="btn-ad" (click)="synchroniserAD()" [disabled]="syncing()">
         <svg width="16" height="16" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
           <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
@@ -31,7 +31,7 @@ interface ResultatSync {
           <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
         </svg>
         @if (syncing()) { <span class="spinner petit"></span> Synchronisation… }
-        @else { Synchroniser depuis Azure AD }
+        @else { Synchroniser depuis Active Directory }
       </button>
       <button class="btn cta" (click)="nouveau()"><app-icon name="plus"/> Nouvel utilisateur</button>
     </div>
@@ -41,7 +41,7 @@ interface ResultatSync {
   @if (resultatSync()) {
     <div class="carte sync-result anim-entree">
       <div class="sr-titre">
-        <app-icon name="checkCircle" [size]="18"/> Synchronisation Azure AD terminée
+        <app-icon name="checkCircle" [size]="18"/> Synchronisation Active Directory terminée
         <button class="fermer" (click)="resultatSync.set(null)"><app-icon name="close" [size]="14"/></button>
       </div>
       <div class="sr-stats">
@@ -59,13 +59,15 @@ interface ResultatSync {
         </div>
         <div class="sr-stat tot">
           <span class="nb">{{ resultatSync()!.total_ad }}</span>
-          <span class="lib">Total Azure AD</span>
+          <span class="lib">Total annuaire</span>
         </div>
       </div>
       <p class="sr-note">
-        Les comptes synchronisés utilisent <strong>Azure AD comme seul mode de connexion</strong>
-        (badge <span class="badge sso">SSO</span>). Leur mot de passe Microsoft reste chez Microsoft —
-        aucun mot de passe SMART HUB n'est créé ni modifié.
+        Les comptes synchronisés se connectent <strong>par l'annuaire de
+        l'entreprise</strong> (badge <span class="badge sso">SSO</span>) : leur mot de
+        passe reste chez Microsoft, aucun mot de passe SMART HUB n'est créé ni modifié.
+        Cette synchronisation interroge l'Active Directory <em>sur site</em> en LDAP ;
+        elle est distincte de la connexion Microsoft Entra ID de la page d'accueil.
       </p>
     </div>
   }
@@ -89,8 +91,8 @@ interface ResultatSync {
             <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
             <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
           </svg>
-          Compte Azure AD — cet utilisateur se connecte via Microsoft.
-          Le mot de passe SMART HUB ne s'applique pas.
+          Compte Microsoft — cet utilisateur se connecte par l'annuaire de
+          l'entreprise. Le mot de passe SMART HUB ne s'applique pas.
         </div>
       }
 
@@ -191,7 +193,7 @@ interface ResultatSync {
             <td>{{ u.filiale_nom || '—' }}</td>
             <td>
               @if (u.source_auth === 'SSO') {
-                <span class="badge sso" title="Se connecte via Microsoft Azure AD">
+                <span class="badge sso" title="Se connecte par l'annuaire Microsoft">
                   <svg width="11" height="11" viewBox="0 0 21 21" style="vertical-align:middle">
                     <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
                     <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
@@ -227,7 +229,7 @@ interface ResultatSync {
     <div>
       <strong>Mots de passe — deux systèmes indépendants</strong>
       <p>
-        Les comptes <span class="badge sso">SSO</span> se connectent exclusivement via Microsoft Azure AD.
+        Les comptes <span class="badge sso">SSO</span> se connectent exclusivement par l'annuaire Microsoft.
         Leur mot de passe Office 365 reste géré par Microsoft — SMART HUB n'y a jamais accès.
         Changer un mot de passe dans SMART HUB n'affecte que la connexion locale (comptes <span class="badge local">Local</span>).
         Les deux systèmes sont complètement indépendants.
@@ -410,7 +412,7 @@ export class UtilisateursComponent implements OnInit {
       },
       error: (e) => {
         this.syncing.set(false);
-        this.erreurSync.set(e?.error?.detail || 'Erreur lors de la synchronisation Azure AD.');
+        this.erreurSync.set(e?.error?.detail || 'Erreur lors de la synchronisation Active Directory.');
       },
     });
   }

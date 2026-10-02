@@ -10,7 +10,12 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
   const token = auth.accessToken;
 
-  const estAuthEndpoint = req.url.includes('/auth/token') || req.url.includes('/auth/refresh');
+  // Les routes d'authentification se passent de jeton — le SSO comprise :
+  // on n'en a pas encore quand on échange son code. Y joindre un jeton
+  // périmé traînant dans localStorage n'apporterait rien.
+  const estAuthEndpoint = req.url.includes('/auth/token')
+    || req.url.includes('/auth/refresh')
+    || req.url.includes('/auth/sso/');
   const requete = token && !estAuthEndpoint
     ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
     : req;

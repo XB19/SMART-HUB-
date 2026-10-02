@@ -25,6 +25,13 @@ urlpatterns = [
     path("salles/", include("applications.salles.urls")),
 ]
 
+# Microsoft Entra ID : /oidc/authenticate/ et /oidc/callback/.
+# Montées seulement si le SSO est configuré — sans quoi `reverse()` sur ces
+# routes échouerait et la page de connexion proposerait un bouton mort.
+if settings.ENTRA_ID_ACTIF:
+    urlpatterns += [path("oidc/", include("mozilla_django_oidc.urls"))]
+
+
 # Sert les fichiers média (photos de salles) en dev.
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
