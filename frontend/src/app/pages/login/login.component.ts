@@ -11,6 +11,9 @@ const MESSAGES_ERREUR: Record<string, string> = {
     + "identifiant et votre mot de passe.",
   profil_echec: "Connexion Microsoft réussie, mais votre profil OSEOR n'a pas "
     + "pu être chargé. Signalez-le à l'administrateur.",
+  sso_inactif: "La connexion Microsoft n'est pas encore activée sur ce "
+    + "serveur. Utilisez votre identifiant et votre mot de passe, ou "
+    + "signalez-le à l'administrateur.",
 };
 
 
@@ -44,19 +47,17 @@ const MESSAGES_ERREUR: Record<string, string> = {
         <div class="alerte err"><app-icon name="close" [size]="16"/>{{ erreur() }}</div>
       }
 
-      @if (sso().actif) {
-        <button type="button" class="btn-microsoft" (click)="connexionMicrosoft()">
-          <svg viewBox="0 0 23 23" width="18" height="18" aria-hidden="true">
-            <rect x="1" y="1" width="10" height="10" fill="#f25022"/>
-            <rect x="12" y="1" width="10" height="10" fill="#7fba00"/>
-            <rect x="1" y="12" width="10" height="10" fill="#00a4ef"/>
-            <rect x="12" y="12" width="10" height="10" fill="#ffb900"/>
-          </svg>
-          Se connecter avec Microsoft
-        </button>
+      <button type="button" class="btn-microsoft" (click)="connexionMicrosoft()">
+        <svg viewBox="0 0 23 23" width="18" height="18" aria-hidden="true">
+          <rect x="1" y="1" width="10" height="10" fill="#f25022"/>
+          <rect x="12" y="1" width="10" height="10" fill="#7fba00"/>
+          <rect x="1" y="12" width="10" height="10" fill="#00a4ef"/>
+          <rect x="12" y="12" width="10" height="10" fill="#ffb900"/>
+        </svg>
+        Se connecter avec Microsoft
+      </button>
 
-        <div class="separateur"><span>ou</span></div>
-      }
+      <div class="separateur"><span>ou</span></div>
 
       <form (ngSubmit)="seConnecter()">
         <div class="champ">
@@ -146,17 +147,28 @@ export class LoginComponent implements OnInit {
       this.erreur.set(MESSAGES_ERREUR[echec] ?? MESSAGES_ERREUR['sso_echec']);
     }
 
-    // Sans réponse — instance sans SSO, API momentanément muette — on s'en
-    // tient au formulaire : il fonctionne dans tous les cas.
+    // Sans réponse — instance sans SSO, API momentanément muette — le
+    // bouton Microsoft reste visible mais renvoie au formulaire, qui
+    // fonctionne dans tous les cas.
     this.auth.etatSSO().subscribe({
       next: (etat) => this.sso.set(etat),
       error: () => this.sso.set({ actif: false, url_connexion: '' }),
     });
   }
 
+  /**
+   * Le bouton est toujours affiché, pour que la connexion Microsoft se
+   * voie. Tant que l'instance n'est pas reliée à Entra ID (variables
+   * AZURE_* vides), le clic explique pourquoi elle n'aboutit pas, plutôt
+   * que de partir vers une page d'erreur.
+   */
   connexionMicrosoft(): void {
-    const url = this.sso().url_connexion;
-    if (url) this.auth.lancerSSO(url);
+    const { actif, url_connexion } = this.sso();
+    if (actif && url_connexion) {
+      this.auth.lancerSSO(url_connexion);
+    } else {
+      this.erreur.set(MESSAGES_ERREUR['sso_inactif']);
+    }
   }
 
   seConnecter(): void {

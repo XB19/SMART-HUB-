@@ -47,9 +47,9 @@ export class AuthService {
   /**
    * Le SSO Microsoft est-il configuré sur cette instance ?
    *
-   * La page de connexion le demande avant d'afficher le bouton : en
-   * proposer un qui mènerait à une erreur de configuration serait pire
-   * que de ne pas le proposer.
+   * La page de connexion le demande pour savoir où mène son bouton
+   * Microsoft : chez Microsoft si oui, vers un message explicatif sinon,
+   * plutôt que vers une erreur de configuration.
    */
   etatSSO(): Observable<EtatSSO> {
     return this.http.get<EtatSSO>(`${this.api}/auth/sso/etat/`);

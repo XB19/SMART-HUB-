@@ -17,6 +17,15 @@ docker compose up --build
 - API : http://localhost/api
 - Admin Django : http://localhost/admin
 
+Hébergement sur un VPS, en HTTPS (requis pour « Se connecter avec
+Microsoft ») : copier `.env.vps.example` en `.env`, le remplir, puis
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
+```
+
+Détails et configuration Microsoft Entra ID : `docs/ENTRA_ID.md`.
+
 ### Première connexion
 
 Au premier démarrage, la base est vide. Créer un compte administrateur :

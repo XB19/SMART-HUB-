@@ -270,8 +270,15 @@ MEDIA_ROOT = BASE_DIR / 'media'
 AUTH_USER_MODEL = "utilisateurs.Utilisateur"
 
 
+# Origines HTTPS d'où partent les formulaires Django (admin) : derrière un
+# domaine public, Django refuse sinon toute connexion à /admin/ (« CSRF
+# verification failed »). Sur un VPS : CSRF_TRUSTED_ORIGINS=https://<domaine>.
 CSRF_TRUSTED_ORIGINS = [
-    "https://*.ngrok-free.app",
+    origine.strip()
+    for origine in config(
+        "CSRF_TRUSTED_ORIGINS", default="https://*.ngrok-free.app"
+    ).split(",")
+    if origine.strip()
 ]
 
 

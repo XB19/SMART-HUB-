@@ -1,0 +1,61 @@
+# Hébergement sur un VPS, en HTTPS — à superposer au fichier principal :
+#
+#   docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
+#
+# Les valeurs viennent du fichier .env à la racine du dépôt (modèle :
+# .env.vps.example). Le HTTPS est indispensable à la connexion Microsoft :
+# Entra ID refuse toute adresse de retour en http hors de localhost.
+#
+# Ce que ce fichier change par rapport au lancement local :
+#   - Caddy se place devant, sur les ports 80 et 443, et gère le certificat ;
+#   - l'API (8000), le WebSocket (8001) et nginx ne sont plus exposés sur
+#     Internet : tout passe par Caddy ;
+#   - Django passe en production (DEBUG=False) et ne répond qu'au domaine.
+#
+# Nécessite Docker Compose 2.24 ou plus récent (balise !reset).
+
+x-django-env-vps: &django-env-vps
+  SECRET_KEY: ${SECRET_KEY:?Renseigner SECRET_KEY dans .env}
+  DEBUG: "False"
+  ALLOWED_HOSTS: ${DOMAINE:?Renseigner DOMAINE dans .env}
+  CORS_ALLOWED_ORIGINS: https://${DOMAINE}
+  CSRF_TRUSTED_ORIGINS: https://${DOMAINE}
+  FRONTEND_URL: https://${DOMAINE}
+
+services:
+  api:
+    environment: *django-env-vps
+    ports: !reset []
+
+  ws:
+    environment: *django-env-vps
+    ports: !reset []
+
+  worker:
+    environment: *django-env-vps
+
+  beat:
+    environment: *django-env-vps
+
+  frontend:
+    ports: !reset []
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - frontend
+    environment:
+      DOMAINE: ${DOMAINE}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

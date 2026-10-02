@@ -98,12 +98,15 @@ Puis :
 docker compose up -d --build
 ```
 
-La migration `0009_codeconnexionsso` s'applique au démarrage du service
+La migration `0010_codeconnexionsso` s'applique au démarrage du service
 `api` (`RUN_MIGRATIONS=1`).
 
-Le bouton « Se connecter avec Microsoft » apparaît alors de lui-même : la
-page de connexion demande à l'API si le SSO est configuré, et ne l'affiche
-que dans ce cas.
+Le bouton « Se connecter avec Microsoft » mène alors chez Microsoft : la
+page de connexion demande à l'API si le SSO est configuré. Sinon, il
+affiche « La connexion Microsoft n'est pas encore activée sur ce serveur ».
+
+Pour un hébergement sur un VPS, voir la section 9 : elle remplace cette
+étape.
 
 ## 5. Points de vigilance
 
@@ -158,9 +161,69 @@ AZURE_TENANT_ID=x AZURE_CLIENT_ID=y AZURE_CLIENT_SECRET=z \
 
 | Symptôme | Cause probable |
 |---|---|
-| Pas de bouton Microsoft | Une des trois variables `AZURE_*` est vide — vérifier `/api/auth/sso/etat/` |
-| `AADSTS50011` (redirect URI mismatch) | L'URI inscrite dans Entra ne correspond pas ; en HTTPS, vérifier que nginx transmet bien `X-Forwarded-Proto` |
+| « La connexion Microsoft n'est pas encore activée » | Une des trois variables `AZURE_*` est vide, ou n'atteint pas le conteneur — vérifier `/api/auth/sso/etat/` |
+| `AADSTS50011` (redirect URI mismatch) | L'URI inscrite dans Entra ne correspond pas à `https://<domaine>/oidc/callback/` (barre finale comprise) ; derrière un proxy HTTPS, vérifier que l'URL `redirect_uri=` de la page Microsoft commence bien par `https` |
+| `AADSTS7000215` (invalid client secret) | La *Value* du secret n'a pas été copiée (et non son *Secret ID*), ou le secret a expiré |
+| `AADSTS700016` (application not found) | `AZURE_CLIENT_ID` ou `AZURE_TENANT_ID` erroné, ou inversés |
 | La page d'accueil s'affiche au lieu de partir chez Microsoft | La règle `location /oidc/` manque dans nginx |
 | « Code de connexion invalide ou expiré » | Code déjà utilisé, ou plus d'une minute écoulée — relancer la connexion |
 | Tout le monde arrive en `EMPLOYE` | Le claim `groups` n'est pas configuré dans *Token configuration* |
 | Connexion refusée sans message | Compte inactif dans SmartHub, ou non affecté à l'application dans Entra |
+
+## 9. Hébergement sur un VPS
+
+Le dépôt fournit de quoi servir SmartHub en HTTPS sur un VPS, sans autre
+logiciel que Docker : `docker-compose.vps.yml` place **Caddy** devant
+l'application, qui obtient et renouvelle seul le certificat Let's Encrypt.
+
+**Prérequis**
+
+- un VPS Linux avec Docker et Docker Compose 2.24 ou plus récent ;
+- un nom de domaine (ex. `smarthub.oseor.com`) dont l'enregistrement DNS
+  `A` pointe vers l'IP du VPS ;
+- les ports **80 et 443** ouverts dans le pare-feu du VPS (et celui de
+  l'hébergeur). Le 80 sert à Let's Encrypt et à la redirection vers HTTPS.
+
+**Étapes**
+
+```bash
+git clone <dépôt> smarthub && cd smarthub
+cp .env.vps.example .env
+nano .env        # DOMAINE, SECRET_KEY, DB_PASSWORD, AZURE_*
+docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.vps.yml \
+    exec api python manage.py createsuperuser
+```
+
+Dans Entra, la *Redirect URI* (type **Web**) est alors exactement
+`https://<DOMAINE>/oidc/callback/`.
+
+**Ce que fait le fichier VPS**
+
+- Caddy écoute sur 80/443 et relaie tout au conteneur `frontend` (nginx) ;
+- l'API, le WebSocket et nginx ne sont plus exposés sur Internet ;
+- Django passe en production (`DEBUG=False`), ne répond qu'au domaine, et
+  `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS` et `CSRF_TRUSTED_ORIGINS` sont
+  déduits de `DOMAINE`.
+
+**Pourquoi nginx relaie `X-Forwarded-Proto`.** Caddy parle HTTPS au
+navigateur mais HTTP à nginx. Si nginx transmettait son propre protocole
+(`http`), Django annoncerait `http://<domaine>/oidc/callback/` à Microsoft,
+qui refuserait la connexion (`AADSTS50011`). `frontend/nginx.conf` relaie
+donc l'en-tête reçu de Caddy.
+
+**Vérifier après le lancement**
+
+```bash
+curl -s https://<DOMAINE>/api/auth/sso/etat/
+# {"actif":true,"url_connexion":"/oidc/authenticate/"}
+
+curl -sI https://<DOMAINE>/oidc/authenticate/ | grep -i location
+# location: https://login.microsoftonline.com/<tenant>/oauth2/v2.0/authorize?...
+#           ...&redirect_uri=https%3A%2F%2F<DOMAINE>%2Foidc%2Fcallback%2F...
+```
+
+Si `redirect_uri` commence par `http%3A`, un proxy supplémentaire devant
+Caddy (Cloudflare, load balancer de l'hébergeur) fausse le protocole.
+
+Mettre à jour plus tard : `git pull`, puis la même commande `up -d --build`.

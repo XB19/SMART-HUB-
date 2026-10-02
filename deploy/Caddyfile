@@ -1,0 +1,14 @@
+# Point d'entrée public de SmartHub sur un VPS (voir docker-compose.vps.yml).
+#
+# Caddy obtient et renouvelle seul le certificat HTTPS (Let's Encrypt) pour
+# {$DOMAINE}, redirige le HTTP vers le HTTPS, puis relaie tout au conteneur
+# frontend (nginx), qui répartit entre l'application Angular, l'API, le
+# WebSocket et la connexion Microsoft.
+#
+# Caddy transmet X-Forwarded-Proto: https ; nginx le relaie à Django, qui
+# s'en sert pour annoncer https://{$DOMAINE}/oidc/callback/ à Microsoft.
+
+{$DOMAINE} {
+	encode gzip
+	reverse_proxy frontend:80
+}
