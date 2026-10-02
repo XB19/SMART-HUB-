@@ -379,7 +379,7 @@ if not DEBUG:
 
 
 # =====================================================================
-# Active Directory local — authentification LDAP (optionnel)
+# Active Directory de l'entreprise — authentification LDAP (optionnel)
 # Active si LDAP_SERVER_URI est défini dans .env.
 # Nécessite : pip install ldap3
 # =====================================================================

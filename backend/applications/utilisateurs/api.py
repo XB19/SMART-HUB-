@@ -128,7 +128,7 @@ class UtilisateurViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["post"], permission_classes=[EstAdministrateur])
     def synchroniser_ad(self, request):
         """
-        Synchronise les utilisateurs depuis l'Active Directory local via LDAP.
+        Synchronise les utilisateurs depuis l'Active Directory de l'entreprise via LDAP.
         Configuration via Administration > Active Directory (ou, à défaut, .env).
         """
         from django.conf import settings
@@ -145,7 +145,14 @@ class UtilisateurViewSet(viewsets.ModelViewSet):
             ad_entries = lister_utilisateurs_ad()
         except Exception as exc:
             return Response(
-                {'detail': f'Erreur de connexion à l\'Active Directory : {exc}'},
+                {'detail': (
+                    f"Erreur de connexion à l'Active Directory : {exc}. "
+                    "Peu importe où l'application est hébergée (poste local ou "
+                    "serveur en ligne) : c'est ce serveur qui doit pouvoir joindre le "
+                    "contrôleur de domaine sur le réseau (même réseau, ou VPN "
+                    "site-à-site si l'hébergement est distant) — pas votre propre "
+                    "ordinateur."
+                )},
                 status=502,
             )
 
@@ -161,7 +168,7 @@ class UtilisateurViewSet(viewsets.ModelViewSet):
 
         enregistrer_action(
             request.user, 'SYNCHRO_AD',
-            f'AD local : {crees} créés, {mis_a_jour} mis à jour, {ignores} ignorés',
+            f'AD entreprise : {crees} créés, {mis_a_jour} mis à jour, {ignores} ignorés',
         )
         return Response({
             'crees':      crees,
@@ -262,7 +269,13 @@ class TesterConnexionLDAPView(APIView):
         try:
             nb = tester_connexion_ad(server_uri, bind_dn, bind_password, base_dn)
         except Exception as exc:
-            return Response({'detail': f'Échec de connexion : {exc}'}, status=502)
+            return Response({'detail': (
+                f'Échec de connexion : {exc}. '
+                "Peu importe où l'application est hébergée (poste local ou serveur en "
+                "ligne) : c'est ce serveur qui doit pouvoir joindre le contrôleur de "
+                "domaine indiqué ci-dessus sur le réseau (même réseau, ou VPN "
+                "site-à-site si l'hébergement est distant) — pas votre propre ordinateur."
+            )}, status=502)
 
         return Response({'detail': f'Connexion réussie ({nb} entrée(s) trouvée(s) sur ce filtre de test).'})
 

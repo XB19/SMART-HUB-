@@ -1,5 +1,5 @@
 """
-Backend d'authentification Active Directory local via LDAP (protocole standard).
+Backend d'authentification Active Directory de l'entreprise via LDAP (protocole standard).
 Utilise ldap3 (pure Python — fonctionne sur Windows et Linux sans compilation C).
 
 .env requis :
@@ -86,7 +86,7 @@ def generer_username(email: str) -> str:
 
 class OseorLDAPBackend(ModelBackend):
     """
-    Authentifie via NTLM contre l'Active Directory local.
+    Authentifie via NTLM contre l'Active Directory de l'entreprise.
     Crée ou synchronise le compte OSEOR à chaque connexion réussie.
     """
 
