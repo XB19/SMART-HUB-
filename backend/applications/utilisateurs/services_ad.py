@@ -1,5 +1,11 @@
 """
-Synchronisation des utilisateurs depuis l'Active Directory local via LDAP.
+Synchronisation des utilisateurs depuis l'Active Directory de l'entreprise via
+LDAP — « local » dans le sens réseau (le contrôleur de domaine interne de
+l'entreprise, par opposition à Azure AD/Entra ID dans le cloud), pas dans le
+sens « application hébergée en local » : que l'app tourne sur un poste de
+développement ou un serveur en ligne (VPS), c'est toujours CE serveur-là qui
+doit joindre le contrôleur de domaine sur le réseau (même réseau, ou VPN
+site-à-site si l'hébergement est distant).
 
 Utilise un compte de service (bind DN) pour lister tous les utilisateurs
 sans qu'un utilisateur soit connecté (équivalent du client credentials flow Azure).

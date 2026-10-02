@@ -52,10 +52,14 @@ passées via `docker-compose.yml` (valeurs par défaut incluses) ou un fichier
 ## Active Directory (LDAP) — synchronisation des utilisateurs
 
 La page **Utilisateurs** propose un bouton de synchronisation des comptes
-depuis un annuaire **Active Directory local de l'entreprise** (LDAP) — à ne
-pas confondre avec Azure AD (cloud). Cette fonctionnalité **ne peut pas être
-configurée par le développeur** : elle nécessite des informations propres au
-réseau interne de l'entreprise, à demander à votre service informatique.
+depuis l'annuaire **Active Directory de l'entreprise** (LDAP) — à ne pas
+confondre avec Azure AD (cloud). « Local » ici qualifie l'annuaire
+(le contrôleur de domaine interne de l'entreprise), pas l'hébergement de
+l'application : que SMART HUB tourne sur un poste de développement ou sur
+un serveur en ligne (VPS), la règle est la même — voir plus bas. Cette
+fonctionnalité **ne peut pas être configurée par le développeur** : elle
+nécessite des informations propres au réseau interne de l'entreprise, à
+demander à votre service informatique.
 
 ### Ce que le service informatique doit fournir
 
@@ -69,8 +73,20 @@ réseau interne de l'entreprise, à demander à votre service informatique.
    - son mot de passe
 
 Le serveur qui héberge l'application (le conteneur `api`) doit aussi avoir un
-accès réseau à ce contrôleur de domaine (même réseau local, ou VPN site-à-site
-si l'application est hébergée ailleurs).
+accès réseau à ce contrôleur de domaine — **y compris si l'application est
+hébergée sur un VPS**, hors du réseau de l'entreprise. Deux cas :
+
+- **Application sur le réseau de l'entreprise** (serveur sur site) : accès
+  direct au contrôleur de domaine, rien à faire.
+- **Application hébergée ailleurs** (VPS, cloud) : le VPS ne peut pas joindre
+  le contrôleur de domaine tant qu'aucun chemin réseau n'existe entre les
+  deux. Il faut soit un **VPN site-à-site** entre le VPS et le réseau de
+  l'entreprise, soit exposer le contrôleur de domaine sur Internet via un
+  pare-feu restreint à l'IP du VPS (`ldaps://`, chiffré, uniquement — jamais
+  `ldap://` en clair sur Internet). Sans l'un des deux, la synchronisation
+  échouera *quel que soit le réglage saisi dans l'application* — ce n'est pas
+  un bug de SMART HUB, c'est une question de réseau à régler avec le service
+  informatique avant de configurer la connexion.
 
 ### Où le configurer
 

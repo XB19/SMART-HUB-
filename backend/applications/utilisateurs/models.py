@@ -303,7 +303,7 @@ def _cle_chiffrement() -> bytes:
 
 class ParametreLDAP(models.Model):
     """
-    Configuration de connexion à l'Active Directory local (LDAP), saisie par
+    Configuration de connexion à l'Active Directory de l'entreprise (LDAP), saisie par
     l'administrateur depuis l'application (remplace les variables .env
     LDAP_* utilisées auparavant). Table à une seule ligne (singleton).
     """
