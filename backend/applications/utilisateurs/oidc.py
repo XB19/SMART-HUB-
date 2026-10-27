@@ -144,8 +144,8 @@ class OseorOIDCBackend(OIDCAuthenticationBackend):
         if not adresse:
             return self.UserModel.objects.none()
 
-        # `username` en second recours : les comptes importés jadis par
-        # LDAP portent l'identifiant AD sans toujours avoir l'e-mail.
+        # `username` en second recours : un compte créé à la main porte
+        # souvent l'identifiant de l'adresse sans avoir l'e-mail.
         correspondances = self.UserModel.objects.filter(email__iexact=adresse)
         if correspondances.exists():
             return correspondances

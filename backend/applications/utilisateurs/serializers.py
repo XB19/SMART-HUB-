@@ -1,8 +1,6 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from .models import ParametreLDAP
-
 User = get_user_model()
 
 
@@ -56,7 +54,7 @@ class UtilisateurSerializer(serializers.ModelSerializer):
     def get_source_auth(self, obj) -> str:
         """
         'SSO' si le compte n'a pas de mot de passe local — il se connecte
-        par l'annuaire Microsoft, Entra ID ou Active Directory sur site.
+        par Microsoft Entra ID.
         'LOCAL' sinon.
         """
         return 'SSO' if not obj.has_usable_password() else 'LOCAL'
@@ -173,41 +171,3 @@ class DatesNaissanceSerializer(serializers.Serializer):
         help_text="Identifiant d'utilisateur -> date de naissance "
                   "(null pour effacer).",
     )
-
-
-class ParametreLDAPSerializer(serializers.ModelSerializer):
-    """
-    Configuration Active Directory (LDAP), éditable par l'administrateur.
-    Le mot de passe est en écriture seule : jamais renvoyé en clair, seul un
-    indicateur `mot_de_passe_defini` signale s'il est enregistré.
-    """
-
-    bind_password = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    mot_de_passe_defini = serializers.SerializerMethodField()
-    configure = serializers.BooleanField(read_only=True)
-
-    class Meta:
-        model = ParametreLDAP
-        fields = (
-            "server_uri",
-            "domaine",
-            "base_dn",
-            "bind_dn",
-            "bind_password",
-            "mot_de_passe_defini",
-            "configure",
-            "date_modification",
-        )
-        read_only_fields = ("date_modification",)
-
-    def get_mot_de_passe_defini(self, obj) -> bool:
-        return bool(obj.bind_password_chiffre)
-
-    def update(self, instance, validated_data):
-        password = validated_data.pop("bind_password", None)
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        if password:
-            instance.bind_password = password
-        instance.save()
-        return instance

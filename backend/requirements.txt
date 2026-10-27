@@ -11,7 +11,6 @@ waitress==3.0.2
 pillow==12.2.0
 psycopg2-binary==2.9.12
 python-decouple==3.8
-ldap3==2.9.1
 cryptography==49.0.0
 sqlparse==0.5.5
 tzdata==2026.2
@@ -29,3 +28,5 @@ django-celery-beat==2.9.0
 # AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET ne sont pas
 # renseignes : l'application reste alors sur le mot de passe.
 mozilla-django-oidc==4.0.1
+# Synchronisation de l'annuaire Entra ID (Microsoft Graph).
+requests==2.34.2

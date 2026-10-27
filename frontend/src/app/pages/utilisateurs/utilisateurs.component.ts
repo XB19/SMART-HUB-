@@ -9,7 +9,7 @@ interface ResultatSync {
   crees: number;
   mis_a_jour: number;
   ignores: number;
-  total_ad: number;
+  total: number;
 }
 
 @Component({
@@ -22,8 +22,8 @@ interface ResultatSync {
       <p class="sous-titre">{{ utilisateurs().length }} compte(s) enregistré(s)</p>
     </div>
     <div class="actions-entete">
-      <!-- Synchronisation depuis l'Active Directory sur site (LDAP) -->
-      <button class="btn-ad" (click)="synchroniserAD()" [disabled]="syncing()">
+      <!-- Synchronisation depuis l'annuaire Microsoft Entra ID -->
+      <button class="btn-entra" (click)="synchroniserEntra()" [disabled]="syncing()">
         <svg width="16" height="16" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
           <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
           <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
@@ -31,7 +31,7 @@ interface ResultatSync {
           <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
         </svg>
         @if (syncing()) { <span class="spinner petit"></span> Synchronisation… }
-        @else { Synchroniser depuis Active Directory }
+        @else { Synchroniser depuis Entra ID }
       </button>
       <button class="btn cta" (click)="nouveau()"><app-icon name="plus"/> Nouvel utilisateur</button>
     </div>
@@ -41,7 +41,7 @@ interface ResultatSync {
   @if (resultatSync()) {
     <div class="carte sync-result anim-entree">
       <div class="sr-titre">
-        <app-icon name="checkCircle" [size]="18"/> Synchronisation Active Directory terminée
+        <app-icon name="checkCircle" [size]="18"/> Synchronisation Entra ID terminée
         <button class="fermer" (click)="resultatSync.set(null)"><app-icon name="close" [size]="14"/></button>
       </div>
       <div class="sr-stats">
@@ -58,16 +58,15 @@ interface ResultatSync {
           <span class="lib">Ignorés</span>
         </div>
         <div class="sr-stat tot">
-          <span class="nb">{{ resultatSync()!.total_ad }}</span>
+          <span class="nb">{{ resultatSync()!.total }}</span>
           <span class="lib">Total annuaire</span>
         </div>
       </div>
       <p class="sr-note">
-        Les comptes synchronisés se connectent <strong>par l'annuaire de
-        l'entreprise</strong> (badge <span class="badge sso">SSO</span>) : leur mot de
-        passe reste chez Microsoft, aucun mot de passe SMART HUB n'est créé ni modifié.
-        Cette synchronisation interroge l'Active Directory <em>sur site</em> en LDAP ;
-        elle est distincte de la connexion Microsoft Entra ID de la page d'accueil.
+        Les comptes créés se connectent <strong>avec Microsoft</strong>
+        (badge <span class="badge sso">SSO</span>) : leur mot de passe reste chez
+        Microsoft, aucun mot de passe SMART HUB n'est créé ni modifié. Comptes
+        désactivés et invités sont ignorés.
       </p>
     </div>
   }
@@ -91,8 +90,8 @@ interface ResultatSync {
             <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
             <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
           </svg>
-          Compte Microsoft — cet utilisateur se connecte par l'annuaire de
-          l'entreprise. Le mot de passe SMART HUB ne s'applique pas.
+          Compte Microsoft Entra ID — cet utilisateur se connecte avec
+          Microsoft. Le mot de passe SMART HUB ne s'applique pas.
         </div>
       }
 
@@ -193,7 +192,7 @@ interface ResultatSync {
             <td>{{ u.filiale_nom || '—' }}</td>
             <td>
               @if (u.source_auth === 'SSO') {
-                <span class="badge sso" title="Se connecte par l'annuaire Microsoft">
+                <span class="badge sso" title="Se connecte avec Microsoft Entra ID">
                   <svg width="11" height="11" viewBox="0 0 21 21" style="vertical-align:middle">
                     <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
                     <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
@@ -229,7 +228,7 @@ interface ResultatSync {
     <div>
       <strong>Mots de passe — deux systèmes indépendants</strong>
       <p>
-        Les comptes <span class="badge sso">SSO</span> se connectent exclusivement par l'annuaire Microsoft.
+        Les comptes <span class="badge sso">SSO</span> se connectent exclusivement avec Microsoft Entra ID.
         Leur mot de passe Office 365 reste géré par Microsoft — SMART HUB n'y a jamais accès.
         Changer un mot de passe dans SMART HUB n'affecte que la connexion locale (comptes <span class="badge local">Local</span>).
         Les deux systèmes sont complètement indépendants.
@@ -242,14 +241,14 @@ interface ResultatSync {
     .sous-titre { color: var(--txt-2); font-size: .82rem; margin: .2rem 0 0; }
     .actions-entete { display: flex; gap: .7rem; align-items: center; }
 
-    .btn-ad {
+    .btn-entra {
       display: flex; align-items: center; gap: .6rem; padding: .55rem 1rem;
       border: 1.5px solid #d1d5db; border-radius: 9px; background: #fff;
       cursor: pointer; font-size: .84rem; font-weight: 600; color: #1f2937;
       font-family: var(--police-corps); transition: background .15s, box-shadow .15s;
     }
-    .btn-ad:hover:not(:disabled) { background: #f8fafc; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
-    .btn-ad:disabled { opacity: .6; cursor: not-allowed; }
+    .btn-entra:hover:not(:disabled) { background: #f8fafc; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    .btn-entra:disabled { opacity: .6; cursor: not-allowed; }
 
     /* Résultat sync */
     .sync-result { padding: 1rem 1.2rem; border-left: 4px solid #22c55e; margin: 1rem 0; }
@@ -400,11 +399,11 @@ export class UtilisateursComponent implements OnInit {
     });
   }
 
-  synchroniserAD(): void {
+  synchroniserEntra(): void {
     this.erreurSync.set('');
     this.resultatSync.set(null);
     this.syncing.set(true);
-    this.api.synchroniserAD().subscribe({
+    this.api.synchroniserEntra().subscribe({
       next: (r) => {
         this.syncing.set(false);
         this.resultatSync.set(r);
@@ -412,7 +411,7 @@ export class UtilisateursComponent implements OnInit {
       },
       error: (e) => {
         this.syncing.set(false);
-        this.erreurSync.set(e?.error?.detail || 'Erreur lors de la synchronisation Active Directory.');
+        this.erreurSync.set(e?.error?.detail || 'Erreur lors de la synchronisation Entra ID.');
       },
     });
   }

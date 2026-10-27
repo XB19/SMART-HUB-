@@ -10,14 +10,13 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from config.permissions import EstAdministrateur
 from applications.journalisation.services import enregistrer_action
-from .models import CodeConnexionSSO, ParametreLDAP
+from .models import CodeConnexionSSO
 from .serializers import (
     DatesNaissanceSerializer,
     UtilisateurSerializer,
     UtilisateurEcritureSerializer,
     MoiSerializer,
     MoiEcritureSerializer,
-    ParametreLDAPSerializer,
 )
 
 User = get_user_model()
@@ -49,7 +48,7 @@ class UtilisateurViewSet(viewsets.ModelViewSet):
         # Délègue à DRF pour tout le reste. Une action qui déclare ses
         # propres `permission_classes` les voit placées dans
         # `self.permission_classes` ; renvoyer une liste en dur ici les
-        # écrasait, si bien que la synchronisation Active Directory était
+        # écrasait, si bien que la synchronisation de l'annuaire était
         # ouverte à n'importe quel compte authentifié.
         return super().get_permissions()
 
@@ -126,55 +125,42 @@ class UtilisateurViewSet(viewsets.ModelViewSet):
         return Response({"mis_a_jour": len(a_enregistrer)})
 
     @action(detail=False, methods=["post"], permission_classes=[EstAdministrateur])
-    def synchroniser_ad(self, request):
+    def synchroniser_entra(self, request):
         """
-        Synchronise les utilisateurs depuis l'Active Directory de l'entreprise via LDAP.
-        Configuration via Administration > Active Directory (ou, à défaut, .env).
+        Importe / met à jour les comptes depuis Microsoft Entra ID (Graph).
+        Configuration : AZURE_* dans l'environnement du serveur.
         """
-        from django.conf import settings
-        from .services_ad import lister_utilisateurs_ad, synchroniser_utilisateur_ad
+        from .services_entra import (
+            ErreurEntra, entra_configure, lister_utilisateurs_entra,
+            synchroniser_utilisateur_entra,
+        )
 
-        if not ParametreLDAP.charger().configure and not getattr(settings, 'LDAP_SERVER_URI', ''):
+        if not entra_configure():
             return Response(
-                {'detail': "Active Directory non configuré. Rendez-vous dans "
-                           "Administration > Active Directory pour le configurer."},
+                {'detail': "Microsoft Entra ID n'est pas configuré sur ce serveur "
+                           "(AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET)."},
                 status=400,
             )
 
         try:
-            ad_entries = lister_utilisateurs_ad()
-        except Exception as exc:
-            return Response(
-                {'detail': (
-                    f"Erreur de connexion à l'Active Directory : {exc}. "
-                    "Peu importe où l'application est hébergée (poste local ou "
-                    "serveur en ligne) : c'est ce serveur qui doit pouvoir joindre le "
-                    "contrôleur de domaine sur le réseau (même réseau, ou VPN "
-                    "site-à-site si l'hébergement est distant) — pas votre propre "
-                    "ordinateur."
-                )},
-                status=502,
-            )
+            fiches = lister_utilisateurs_entra()
+        except ErreurEntra as exc:
+            return Response({'detail': str(exc)}, status=502)
 
-        crees = mis_a_jour = ignores = 0
-        for entry in ad_entries:
-            resultat = synchroniser_utilisateur_ad(entry)
-            if resultat == 'cree':
-                crees += 1
-            elif resultat == 'mis_a_jour':
-                mis_a_jour += 1
-            else:
-                ignores += 1
+        compteurs = {'cree': 0, 'mis_a_jour': 0, 'ignore': 0}
+        for fiche in fiches:
+            compteurs[synchroniser_utilisateur_entra(fiche)] += 1
 
         enregistrer_action(
-            request.user, 'SYNCHRO_AD',
-            f'AD entreprise : {crees} créés, {mis_a_jour} mis à jour, {ignores} ignorés',
+            request.user, 'SYNCHRO_ENTRA',
+            f"Entra ID : {compteurs['cree']} créés, {compteurs['mis_a_jour']} mis à jour, "
+            f"{compteurs['ignore']} ignorés",
         )
         return Response({
-            'crees':      crees,
-            'mis_a_jour': mis_a_jour,
-            'ignores':    ignores,
-            'total_ad':   len(ad_entries),
+            'crees':      compteurs['cree'],
+            'mis_a_jour': compteurs['mis_a_jour'],
+            'ignores':    compteurs['ignore'],
+            'total':      len(fiches),
         })
 
     @action(detail=False, methods=["get"])
@@ -221,63 +207,45 @@ class MoiView(generics.RetrieveUpdateAPIView):
         return Response(MoiSerializer(request.user).data)
 
 
-class ParametreLDAPView(generics.RetrieveUpdateAPIView):
+class EtatEntraView(APIView):
     """
-    Configuration Active Directory (LDAP) — lecture/écriture réservée à
-    l'administrateur. Table à une seule ligne (singleton).
+    État de l'intégration Microsoft Entra ID, pour la page Administration.
+
+    Les identifiants se règlent dans l'environnement du serveur (.env), pas
+    depuis l'application : un secret client n'a rien à faire en base.
     """
 
-    serializer_class = ParametreLDAPSerializer
     permission_classes = [EstAdministrateur]
 
-    def get_object(self):
-        return ParametreLDAP.charger()
+    def get(self, request):
+        actif = bool(getattr(settings, 'ENTRA_ID_ACTIF', False))
+        return Response({
+            'actif': actif,
+            'tenant_id': settings.AZURE_TENANT_ID,
+            'client_id': settings.AZURE_CLIENT_ID,
+            'url_retour': request.build_absolute_uri('/oidc/callback/'),
+        })
 
-    def perform_update(self, serializer):
-        parametres = serializer.save()
-        enregistrer_action(
-            self.request.user, 'PARAMETRES_AD_MODIFIES',
-            'Configuration Active Directory (LDAP)', objet=parametres,
-        )
 
-
-class TesterConnexionLDAPView(APIView):
-    """
-    Teste une connexion LDAP avec les valeurs saisies (ou déjà enregistrées
-    si un champ est laissé vide), sans lancer de synchronisation.
-    """
+class TesterEntraView(APIView):
+    """Vérifie que l'application peut lire l'annuaire via Microsoft Graph."""
 
     permission_classes = [EstAdministrateur]
 
     def post(self, request):
-        from .services_ad import tester_connexion_ad
+        from .services_entra import ErreurEntra, entra_configure, tester_connexion_entra
 
-        parametres = ParametreLDAP.charger()
-        donnees = request.data
-        server_uri = donnees.get('server_uri') or parametres.server_uri
-        base_dn = donnees.get('base_dn') or parametres.base_dn
-        bind_dn = donnees.get('bind_dn') or parametres.bind_dn
-        bind_password = donnees.get('bind_password') or parametres.bind_password
-
-        if not (server_uri and base_dn and bind_dn and bind_password):
+        if not entra_configure():
             return Response(
-                {'detail': 'Renseignez le serveur, la base DN, le compte de service '
-                           'et son mot de passe avant de tester.'},
+                {'detail': "Microsoft Entra ID n'est pas configuré sur ce serveur."},
                 status=400,
             )
-
         try:
-            nb = tester_connexion_ad(server_uri, bind_dn, bind_password, base_dn)
-        except Exception as exc:
-            return Response({'detail': (
-                f'Échec de connexion : {exc}. '
-                "Peu importe où l'application est hébergée (poste local ou serveur en "
-                "ligne) : c'est ce serveur qui doit pouvoir joindre le contrôleur de "
-                "domaine indiqué ci-dessus sur le réseau (même réseau, ou VPN "
-                "site-à-site si l'hébergement est distant) — pas votre propre ordinateur."
-            )}, status=502)
+            tester_connexion_entra()
+        except ErreurEntra as exc:
+            return Response({'detail': str(exc)}, status=502)
 
-        return Response({'detail': f'Connexion réussie ({nb} entrée(s) trouvée(s) sur ce filtre de test).'})
+        return Response({'detail': "Connexion réussie : l'annuaire Microsoft est lisible."})
 
 
 # =====================================================================

@@ -4,7 +4,7 @@ import { Observable, shareReplay } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
   Salle, Equipement, Filiale, Reservation, DisponibiliteResultat,
-  Audience, Delegation, Utilisateur, NotificationItem, Paginated, ParametresLDAP,
+  Audience, Delegation, Utilisateur, NotificationItem, Paginated, EtatEntra,
   ConfigurationDocument, DocumentAdministratif, TypeDocumentAdministratif, StatutLivraison,
   StatutPaiement,
   Article, MouvementStock, Contrat, RapportAdministratif,
@@ -164,8 +164,8 @@ export class ApiService {
   majUtilisateur(id: number, u: any): Observable<Utilisateur> {
     return this.http.put<Utilisateur>(`${this.api}/utilisateurs/${id}/`, u);
   }
-  synchroniserAD(): Observable<{ crees: number; mis_a_jour: number; ignores: number; total_ad: number }> {
-    return this.http.post<any>(`${this.api}/utilisateurs/synchroniser_ad/`, {});
+  synchroniserEntra(): Observable<{ crees: number; mis_a_jour: number; ignores: number; total: number }> {
+    return this.http.post<any>(`${this.api}/utilisateurs/synchroniser_entra/`, {});
   }
 
   // ---------- Notifications ----------
@@ -192,15 +192,12 @@ export class ApiService {
     return this.http.get<any>(`${this.api}/journal/`, { params: this.params({ ordering: '-date_creation', ...filtres }) });
   }
 
-  // ---------- Administration : Active Directory (LDAP) ----------
-  parametresLDAP(): Observable<ParametresLDAP> {
-    return this.http.get<ParametresLDAP>(`${this.api}/parametres/ldap/`);
+  // ---------- Administration : Microsoft Entra ID ----------
+  etatEntra(): Observable<EtatEntra> {
+    return this.http.get<EtatEntra>(`${this.api}/parametres/entra/`);
   }
-  majParametresLDAP(p: any): Observable<ParametresLDAP> {
-    return this.http.patch<ParametresLDAP>(`${this.api}/parametres/ldap/`, p);
-  }
-  testerLDAP(p: any = {}): Observable<{ detail: string }> {
-    return this.http.post<{ detail: string }>(`${this.api}/parametres/ldap/tester/`, p);
+  testerEntra(): Observable<{ detail: string }> {
+    return this.http.post<{ detail: string }>(`${this.api}/parametres/entra/tester/`, {});
   }
 
   // ---------- Mon profil (photo, signature électronique) ----------

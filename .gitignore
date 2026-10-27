@@ -20,6 +20,7 @@ backend/staticfiles/
 .DS_Store
 .idea/
 .vscode/
+.claude/
 
 # Ancien prototype (Spring Boot + React), dépôt Git distinct : la
 # fonctionnalité visiteurs vit désormais dans applications.visiteurs /

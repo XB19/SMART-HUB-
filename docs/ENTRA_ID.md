@@ -1,9 +1,17 @@
-# Connexion Microsoft Entra ID
+# Microsoft Entra ID
 
-SmartHub sait se connecter par Microsoft Entra ID (ex-Azure AD). La
-fonction est **facultative et inactive par défaut** : tant que les
-identifiants ci-dessous ne sont pas renseignés, la page de connexion ne
-propose que l'identifiant et le mot de passe, exactement comme avant.
+SmartHub s'appuie sur Microsoft Entra ID (ex-Azure AD), l'annuaire
+Microsoft de l'entreprise, pour deux choses :
+
+- **la connexion** : bouton « Se connecter avec Microsoft » ;
+- **l'annuaire** : bouton « Synchroniser depuis Entra ID » de la page
+  *Utilisateurs*, qui importe les comptes sans attendre leur première
+  connexion.
+
+Les deux utilisent la même inscription d'application, réglée par trois
+variables d'environnement. La fonction est **facultative** : tant que ces
+identifiants ne sont pas renseignés, l'application fonctionne par
+identifiant et mot de passe, exactement comme avant.
 
 ---
 
@@ -54,6 +62,11 @@ le SSO s'arrête.
 - *Add groups claim* → groupes de sécurité, dans le jeton d'identité
 - *Add optional claim* → ID token → `jobTitle` (repli quand un salarié
   n'est dans aucun groupe)
+
+**API permissions** (pour la synchronisation de l'annuaire) → *Add a
+permission* → *Microsoft Graph* → *Application permissions* →
+`User.Read.All`, puis **Grant admin consent**. Sans elle, la connexion
+fonctionne mais la synchronisation répond « Permission manquante ».
 
 **Enterprise application → Properties** : mettre *User assignment
 required* à **Oui** pour n'ouvrir SmartHub qu'aux personnes explicitement
@@ -127,10 +140,14 @@ monde. Conserver au moins un compte administrateur local.
 connexion est refusée même par Microsoft, sans attendre que le compte
 Entra soit supprimé.
 
-**Ne pas confondre avec le LDAP.** *Administration → Active Directory* et
-le bouton *Synchroniser depuis Active Directory* visent un contrôleur de
-domaine **sur site**, en LDAP. Entra ID ne parle pas LDAP : les deux
-intégrations sont indépendantes et peuvent coexister ou non.
+**Synchroniser l'annuaire.** *Utilisateurs → Synchroniser depuis Entra ID*
+lit tous les comptes du tenant via Microsoft Graph et les rapproche par
+e-mail, exactement comme une connexion : un compte existant est complété
+(jamais son rôle s'il a été réglé dans SmartHub), un compte absent est
+créé sans mot de passe local — il se connectera avec Microsoft. Les
+comptes désactivés dans Entra et les invités sont ignorés.
+*Administration → Microsoft Entra ID* affiche la configuration en place
+et un bouton *Tester la connexion*.
 
 ## 6. Comment les jetons circulent
 
@@ -169,6 +186,8 @@ AZURE_TENANT_ID=x AZURE_CLIENT_ID=y AZURE_CLIENT_SECRET=z \
 | « Code de connexion invalide ou expiré » | Code déjà utilisé, ou plus d'une minute écoulée — relancer la connexion |
 | Tout le monde arrive en `EMPLOYE` | Le claim `groups` n'est pas configuré dans *Token configuration* |
 | Connexion refusée sans message | Compte inactif dans SmartHub, ou non affecté à l'application dans Entra |
+| Synchronisation : « Permission manquante » | `User.Read.All` (type *Application*) non accordée, ou consentement administrateur pas donné |
+| Synchronisation : « Microsoft refuse l'authentification de l'application » | Secret expiré ou mal copié, tenant ou ID client erroné |
 
 ## 9. Hébergement sur un VPS
 
@@ -195,6 +214,9 @@ docker compose -f docker-compose.yml -f docker-compose.vps.yml \
     exec api python manage.py createsuperuser
 ```
 
+Le compte créé par `createsuperuser` est **administrateur** de SmartHub
+(rôle `ADMINISTRATEUR`) en plus de l'admin Django.
+
 Dans Entra, la *Redirect URI* (type **Web**) est alors exactement
 `https://<DOMAINE>/oidc/callback/`.
 
@@ -210,7 +232,11 @@ Dans Entra, la *Redirect URI* (type **Web**) est alors exactement
 navigateur mais HTTP à nginx. Si nginx transmettait son propre protocole
 (`http`), Django annoncerait `http://<domaine>/oidc/callback/` à Microsoft,
 qui refuserait la connexion (`AADSTS50011`). `frontend/nginx.conf` relaie
-donc l'en-tête reçu de Caddy.
+donc l'en-tête reçu de Caddy, et le service `api` est lancé avec
+`API_TRUSTED_PROXY=*` pour que waitress ne l'efface pas : sans cela,
+Django croirait chaque requête en HTTP et redirigerait le formulaire de
+connexion, qui échouerait alors avec « Identifiant ou mot de passe
+incorrect ».
 
 **Vérifier après le lancement**
 

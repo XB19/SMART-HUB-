@@ -164,14 +164,12 @@ export interface NotificationItem {
   date_creation: string;
 }
 
-export interface ParametresLDAP {
-  server_uri: string;
-  domaine: string;
-  base_dn: string;
-  bind_dn: string;
-  mot_de_passe_defini: boolean;
-  configure: boolean;
-  date_modification: string;
+/** État de l'intégration Microsoft Entra ID (réglée dans le .env du serveur). */
+export interface EtatEntra {
+  actif: boolean;
+  tenant_id: string;
+  client_id: string;
+  url_retour: string;
 }
 
 export type TypeDocumentAdministratif =

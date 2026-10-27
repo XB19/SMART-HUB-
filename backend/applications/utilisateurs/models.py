@@ -1,13 +1,25 @@
-import base64
 import hashlib
 import secrets
 from datetime import timedelta
 
-from django.conf import settings
 from django.db import models
 from django.utils import timezone
-from django.contrib.auth.models import AbstractUser
-from cryptography.fernet import Fernet, InvalidToken
+from django.contrib.auth.models import AbstractUser, UserManager
+
+
+class UtilisateurManager(UserManager):
+    """
+    Gestionnaire des comptes : un super-utilisateur est administrateur.
+
+    `createsuperuser` ne connaît que les droits Django (is_staff,
+    is_superuser) ; or SMART HUB ne regarde que `role`. Sans ce réglage,
+    le compte créé pour administrer la plateforme y entrait comme simple
+    EMPLOYE.
+    """
+
+    def create_superuser(self, username, email=None, password=None, **extra_fields):
+        extra_fields.setdefault("role", Utilisateur.Role.ADMINISTRATEUR)
+        return super().create_superuser(username, email, password, **extra_fields)
 
 
 class Utilisateur(AbstractUser):
@@ -159,6 +171,8 @@ class Utilisateur(AbstractUser):
         auto_now=True
     )
 
+    objects = UtilisateurManager()
+
     class Meta:
         verbose_name = "Utilisateur"
         verbose_name_plural = "Utilisateurs"
@@ -212,7 +226,7 @@ class Utilisateur(AbstractUser):
     # -----------------------------------------------------------------
 
     # Garde-fou : borne la remontée de la hiérarchie même si un cycle a été
-    # introduit hors validation (import LDAP, chargement de fixtures, SQL
+    # introduit hors validation (synchronisation Entra ID, fixtures, SQL
     # direct — aucun de ces chemins n'appelle `clean()`).
     PROFONDEUR_MAX_HIERARCHIE = 20
 
@@ -292,97 +306,6 @@ class Utilisateur(AbstractUser):
             courant = courant.responsable_hierarchique
             profondeur += 1
 
-
-def _cle_chiffrement() -> bytes:
-    """
-    Dérive une clé Fernet stable depuis SECRET_KEY, pour éviter d'avoir à
-    gérer une clé de chiffrement séparée. Si SECRET_KEY change (rotation),
-    les mots de passe déjà enregistrés ne seront plus déchiffrables et
-    devront être ressaisis.
-    """
-    empreinte = hashlib.sha256(settings.SECRET_KEY.encode()).digest()
-    return base64.urlsafe_b64encode(empreinte)
-
-
-class ParametreLDAP(models.Model):
-    """
-    Configuration de connexion à l'Active Directory de l'entreprise (LDAP), saisie par
-    l'administrateur depuis l'application (remplace les variables .env
-    LDAP_* utilisées auparavant). Table à une seule ligne (singleton).
-    """
-
-    server_uri = models.CharField(
-        verbose_name="Adresse du serveur LDAP",
-        max_length=255,
-        blank=True,
-        help_text="Ex. ldap://192.168.1.10 (ou ldaps:// pour le chiffrement TLS).",
-    )
-
-    domaine = models.CharField(
-        verbose_name="Domaine NetBIOS",
-        max_length=100,
-        blank=True,
-        help_text="Nom NetBIOS du domaine Windows, ex. OSEOR.",
-    )
-
-    base_dn = models.CharField(
-        verbose_name="Base DN",
-        max_length=255,
-        blank=True,
-        help_text="Ex. DC=oseor,DC=local",
-    )
-
-    bind_dn = models.CharField(
-        verbose_name="DN du compte de service",
-        max_length=255,
-        blank=True,
-        help_text="Ex. CN=svcOseor,OU=Services,DC=oseor,DC=local",
-    )
-
-    bind_password_chiffre = models.TextField(
-        verbose_name="Mot de passe du compte de service (chiffré)",
-        blank=True,
-    )
-
-    date_modification = models.DateTimeField(
-        verbose_name="Dernière modification",
-        auto_now=True,
-    )
-
-    class Meta:
-        verbose_name = "Paramètre LDAP"
-        verbose_name_plural = "Paramètres LDAP"
-
-    def __str__(self):
-        return "Configuration Active Directory (LDAP)"
-
-    def save(self, *args, **kwargs):
-        # Ligne unique : toujours pk=1.
-        self.pk = 1
-        super().save(*args, **kwargs)
-
-    @classmethod
-    def charger(cls) -> "ParametreLDAP":
-        obj, _ = cls.objects.get_or_create(pk=1)
-        return obj
-
-    @property
-    def configure(self) -> bool:
-        return bool(self.server_uri and self.domaine and self.base_dn and self.bind_dn)
-
-    @property
-    def bind_password(self) -> str:
-        if not self.bind_password_chiffre:
-            return ""
-        try:
-            return Fernet(_cle_chiffrement()).decrypt(self.bind_password_chiffre.encode()).decode()
-        except InvalidToken:
-            return ""
-
-    @bind_password.setter
-    def bind_password(self, valeur: str):
-        if valeur:
-            self.bind_password_chiffre = Fernet(_cle_chiffrement()).encrypt(valeur.encode()).decode()
 
 class CodeConnexionSSO(models.Model):
     """

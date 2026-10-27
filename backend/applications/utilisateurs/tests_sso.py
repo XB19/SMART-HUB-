@@ -288,8 +288,8 @@ class ClaimsVersUtilisateurTest(TestCase):
 
         self.assertEqual(list(trouves), [existant])
 
-    def test_compte_ldap_retrouve_par_username(self):
-        """Les comptes importés jadis par LDAP n'ont pas tous un e-mail."""
+    def test_compte_sans_email_retrouve_par_username(self):
+        """Un compte créé à la main n'a pas toujours d'e-mail."""
         existant = User.objects.create_user("paulin.tcheouafe", password="x")
 
         trouves = self.backend.filter_users_by_claims(

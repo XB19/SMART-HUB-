@@ -303,13 +303,13 @@ ENTREES = [
     },
     {
         "module": Module.UTILISATEURS,
-        "question": "Comment synchroniser les comptes avec Active Directory ?",
-        "mots_cles": "active directory, ldap, synchroniser, ad",
+        "question": "Comment synchroniser les comptes avec Microsoft Entra ID ?",
+        "mots_cles": "entra id, microsoft, azure, annuaire, synchroniser",
         "reponse": (
-            "Sur la page « Utilisateurs » (administrateur), le bouton de "
-            "synchronisation lance l'import depuis l'annuaire de l'entreprise. "
-            "Il faut au préalable avoir renseigné les paramètres du serveur dans "
-            "« Administration → Active Directory »."
+            "Sur la page « Utilisateurs » (administrateur), le bouton "
+            "« Synchroniser depuis Entra ID » importe les comptes de l'annuaire "
+            "Microsoft de l'entreprise. Son état et un test de connexion se "
+            "trouvent dans « Administration → Microsoft Entra ID »."
         ),
         "ordre": 3,
     },
@@ -349,12 +349,19 @@ ENTREES = [
 ]
 
 
+#: Questions retirées : supprimées des bases déjà peuplées.
+QUESTIONS_OBSOLETES = [
+    "Comment synchroniser les comptes avec Active Directory ?",
+]
+
+
 class Command(BaseCommand):
     help = "Peuple le contenu initial du chatbot d'aide (FAQ)."
 
     def handle(self, *args, **options):
         crees = 0
         maj = 0
+        EntreeAide.objects.filter(question__in=QUESTIONS_OBSOLETES).delete()
         for entree in ENTREES:
             _, cree = EntreeAide.objects.update_or_create(
                 module=entree["module"],

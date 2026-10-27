@@ -171,13 +171,13 @@ class DatesNaissanceTests(APITestCase):
         self.employe.refresh_from_db()
         self.assertIsNone(self.employe.date_naissance)
 
-    def test_synchronisation_ad_reservee_a_l_administrateur(self):
+    def test_synchronisation_entra_reservee_a_l_administrateur(self):
         """
         Régression : l'override de `get_permissions` renvoyait une liste en
         dur, écrasant les `permission_classes` déclarées sur les actions.
-        La synchronisation Active Directory était de ce fait ouverte à tout
+        La synchronisation de l'annuaire était de ce fait ouverte à tout
         compte authentifié.
         """
         self.client.force_authenticate(self.employe)
-        reponse = self.client.post("/api/utilisateurs/synchroniser_ad/")
+        reponse = self.client.post("/api/utilisateurs/synchroniser_entra/")
         self.assertEqual(reponse.status_code, 403)

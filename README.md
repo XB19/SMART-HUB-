@@ -1,132 +1,155 @@
 # SMART HUB — OSEOR Digitalisation
 
-Plateforme de gestion administrative du groupe OSEOR (réservation de salles,
-audiences, documents administratifs — Fiche de besoin, Demande d'achat,
-Fiche de transport, Bon de sortie de caisse). Backend Django (API REST) +
-frontend Angular, dockerisés.
+Plateforme de gestion administrative du groupe OSEOR : réservation de
+salles, audiences, visiteurs, congés, documents administratifs (fiche de
+besoin, demande d'achat, fiche de transport, bon de sortie de caisse…),
+connexion et annuaire Microsoft Entra ID.
 
-## Démarrage rapide (Docker)
+| Dossier | Contenu |
+|---|---|
+| `backend/` | API REST Django, WebSocket (notifications), tâches Celery |
+| `frontend/` | Application Angular, servie par nginx en production |
+| `deploy/` | Configuration de Caddy (HTTPS) pour le VPS |
+| `docs/` | Documentation détaillée (Microsoft Entra ID) |
+| `docker-compose.yml` | Lancement complet de l'application |
+| `docker-compose.vps.yml` | Surcouche pour un VPS en HTTPS |
 
-Prérequis : [Docker Desktop](https://www.docker.com/products/docker-desktop/) installé.
+## Lancer en local (Docker)
+
+Prérequis : [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
 ```bash
 docker compose up --build
-```
-
-- Application : http://localhost
-- API : http://localhost/api
-- Admin Django : http://localhost/admin
-
-Hébergement sur un VPS, en HTTPS (requis pour « Se connecter avec
-Microsoft ») : copier `.env.vps.example` en `.env`, le remplir, puis
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
-```
-
-Détails et configuration Microsoft Entra ID : `docs/ENTRA_ID.md`.
-
-### Première connexion
-
-Au premier démarrage, la base est vide. Créer un compte administrateur :
-
-```bash
 docker compose exec api python manage.py createsuperuser
 ```
 
-Ou charger le jeu de données de démonstration (comptes de test, filiales,
-salles) :
+- Application : http://localhost
+- Admin Django : http://localhost/admin
+
+Le compte créé par `createsuperuser` est **administrateur** de SMART HUB
+(rôle « Administrateur Groupe ») et de l'admin Django.
+
+Pour un jeu de données de démonstration (comptes de test, filiales, salles) :
 
 ```bash
 docker compose exec api python manage.py loaddata fixtures/donnees_test.json
 docker compose exec api python manage.py seed_config_documents
+docker compose exec api python manage.py seed_aide
 ```
+
+## Déploiement sur un VPS
+
+Le VPS sert l'application en HTTPS (obligatoire pour la connexion
+Microsoft). Caddy obtient et renouvelle seul le certificat Let's Encrypt :
+rien d'autre que Docker à installer.
+
+**Prérequis**
+
+- un VPS Linux avec Docker et Docker Compose 2.24 ou plus récent ;
+- un nom de domaine dont l'enregistrement DNS `A` pointe vers l'IP du VPS ;
+- les ports **80 et 443** ouverts (pare-feu du VPS et de l'hébergeur).
+
+**Premier déploiement**
+
+```bash
+git clone https://github.com/XB19/SMART-HUB-.git smarthub && cd smarthub
+cp .env.vps.example .env
+nano .env        # DOMAINE, SECRET_KEY, DB_PASSWORD, AZURE_*, e-mails
+docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.vps.yml \
+    exec api python manage.py createsuperuser
+```
+
+L'application répond ensuite sur `https://<DOMAINE>`. Les migrations
+s'appliquent seules au démarrage du conteneur `api`.
+
+**Mettre à jour**
+
+```bash
+git pull
+docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
+```
+
+**Consulter les journaux**
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.vps.yml logs api --tail 100
+```
+
+**Ce que fait `docker-compose.vps.yml`** : Caddy écoute sur 80/443 et relaie
+tout à nginx ; l'API, le WebSocket et nginx ne sont plus exposés sur
+Internet ; Django passe en production (`DEBUG=False`) et ne répond qu'au
+domaine.
+
+## Microsoft Entra ID
+
+Avec les trois variables `AZURE_*`, SMART HUB propose :
+
+- **« Se connecter avec Microsoft »** sur la page de connexion ;
+- **« Synchroniser depuis Entra ID »** sur la page *Utilisateurs*, qui
+  importe les comptes de l'annuaire Microsoft de l'entreprise ;
+- **Administration → Microsoft Entra ID**, qui affiche la configuration
+  et teste la connexion.
+
+À faire dans Entra (inscription d'application) : Redirect URI
+`https://<DOMAINE>/oidc/callback/` (type Web), un secret client, et la
+permission Microsoft Graph `User.Read.All` (type Application, avec
+consentement administrateur) pour la synchronisation. Pas à pas complet et
+dépannage : [`docs/ENTRA_ID.md`](docs/ENTRA_ID.md).
+
+Les identifiants se règlent uniquement dans le `.env` du serveur, jamais
+dans l'application.
 
 ## Configuration
 
-Le comportement de l'application se règle par variables d'environnement,
-passées via `docker-compose.yml` (valeurs par défaut incluses) ou un fichier
-`backend/.env` en développement local (voir `backend/.env.example`).
+Variables lues par le backend : `.env` à la racine pour Docker (modèle
+`.env.vps.example`), `backend/.env` en développement sans Docker (modèle
+`backend/.env.example`).
 
 | Variable | Rôle |
 |---|---|
-| `SECRET_KEY` | Clé secrète Django — **à changer en production**. |
-| `DEBUG` | `True` en développement, `False` en production. |
-| `ALLOWED_HOSTS` | Domaines autorisés à servir l'application. |
-| `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` | Connexion PostgreSQL. |
-| `REDIS_URL` | Partage des notifications temps réel entre les services `api` et `ws`. |
-| `CORS_ALLOWED_ORIGINS` | Origines autorisées à appeler l'API. |
-| `EMAIL_HOST`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | SMTP pour l'envoi d'e-mails (notifications). Sans ça, les e-mails s'affichent seulement dans les logs. |
+| `DOMAINE` | Nom de domaine public (VPS uniquement). |
+| `SECRET_KEY` | Clé secrète Django — longue, aléatoire, propre au serveur. |
+| `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Base PostgreSQL. Le mot de passe est fixé au premier lancement. |
+| `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` | Microsoft Entra ID (facultatif). |
+| `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL` | Envoi des e-mails. Sans eux, les e-mails s'affichent dans les journaux. |
+| `DEBUG`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS` | Réglés automatiquement sur le VPS ; utiles seulement hors VPS. |
 
-## Active Directory (LDAP) — synchronisation des utilisateurs
+## Développement sans Docker
 
-La page **Utilisateurs** propose un bouton de synchronisation des comptes
-depuis l'annuaire **Active Directory de l'entreprise** (LDAP) — à ne pas
-confondre avec Azure AD (cloud). « Local » ici qualifie l'annuaire
-(le contrôleur de domaine interne de l'entreprise), pas l'hébergement de
-l'application : que SMART HUB tourne sur un poste de développement ou sur
-un serveur en ligne (VPS), la règle est la même — voir plus bas. Cette
-fonctionnalité **ne peut pas être configurée par le développeur** : elle
-nécessite des informations propres au réseau interne de l'entreprise, à
-demander à votre service informatique.
+Prérequis : Python 3.12+, Node 22+, PostgreSQL.
 
-### Ce que le service informatique doit fournir
+```bash
+# Backend (http://127.0.0.1:8000)
+cd backend
+python -m venv venv && venv\Scripts\activate    # Linux/macOS : source venv/bin/activate
+pip install -r requirements.txt
+copy .env.example .env                          # puis renseigner DB_PASSWORD…
+python manage.py migrate
+python manage.py runserver
 
-1. **Adresse du serveur LDAP** du contrôleur de domaine (ex. `ldap://192.168.1.10`
-   ou `ldaps://...` si le chiffrement TLS est activé).
-2. **Domaine NetBIOS** (nom court du domaine Windows, ex. `OSEOR`).
-3. **Base DN** — racine de recherche dans l'annuaire (ex. `DC=oseor,DC=local`).
-4. **Un compte de service** dédié à cette synchronisation (recommandé : lecture
-   seule, sans droits d'administration), avec :
-   - son DN complet (ex. `CN=svcOseorSync,OU=Services,DC=oseor,DC=local`)
-   - son mot de passe
+# Frontend (http://localhost:4200), dans un second terminal
+cd frontend
+npm install
+npm start
+```
 
-Le serveur qui héberge l'application (le conteneur `api`) doit aussi avoir un
-accès réseau à ce contrôleur de domaine — **y compris si l'application est
-hébergée sur un VPS**, hors du réseau de l'entreprise. Deux cas :
-
-- **Application sur le réseau de l'entreprise** (serveur sur site) : accès
-  direct au contrôleur de domaine, rien à faire.
-- **Application hébergée ailleurs** (VPS, cloud) : le VPS ne peut pas joindre
-  le contrôleur de domaine tant qu'aucun chemin réseau n'existe entre les
-  deux. Il faut soit un **VPN site-à-site** entre le VPS et le réseau de
-  l'entreprise, soit exposer le contrôleur de domaine sur Internet via un
-  pare-feu restreint à l'IP du VPS (`ldaps://`, chiffré, uniquement — jamais
-  `ldap://` en clair sur Internet). Sans l'un des deux, la synchronisation
-  échouera *quel que soit le réglage saisi dans l'application* — ce n'est pas
-  un bug de SMART HUB, c'est une question de réseau à régler avec le service
-  informatique avant de configurer la connexion.
-
-### Où le configurer
-
-Une fois ces informations en main, un compte **Administrateur** de
-l'application les saisit lui-même, sans intervention développeur :
-
-**Administration → Active Directory** (menu latéral, visible uniquement par
-les administrateurs) → remplir les 5 champs → bouton **« Tester la
-connexion »** pour vérifier avant d'enregistrer.
-
-Le mot de passe du compte de service est stocké chiffré en base (jamais en
-clair), et cette configuration peut être modifiée à tout moment sans
-redémarrer l'application.
-
-### Limite connue
-
-La correspondance entre les **groupes Active Directory** et les **rôles de
-l'application** (Administrateur, Directeur, Secrétaire, Comptable...) est
-actuellement définie dans le code (`backend/applications/utilisateurs/services_ad.py`,
-dictionnaire `GROUPES_ROLES`). Si les noms de groupes AD de l'entreprise
-diffèrent de ceux prévus par défaut, une petite modification de code est
-nécessaire pour les faire correspondre — à demander au développeur si besoin.
+`runserver` sert à la fois l'API et le WebSocket : pas besoin de Redis en
+développement. Tests du backend : `python manage.py test`.
 
 ## Rôles utilisateurs
 
 | Rôle | Accès principal |
 |---|---|
-| Administrateur | Accès complet, y compris Administration et gestion des utilisateurs. |
-| Directeur Général | Approuve/décline les documents et audiences de tout le groupe. |
-| Secrétaire | Réservation de salles, audiences, bons de commande, factures, notes internes. |
+| Administrateur Groupe | Accès complet, y compris Administration et gestion des utilisateurs. |
+| Directeur | Approuve/décline les documents et audiences de tout le groupe. |
+| Secrétaire | Réservation de salles, audiences, visiteurs, bons de commande, factures, notes internes. |
 | Chef de service | Contrats, prestations de services, gestion de stocks. |
 | Comptable | Factures, rapports administratifs, bon de sortie de caisse. |
-| RH | Accès de base. |
+| RH | Validation des congés, dossiers disciplinaires. |
+| Agent de sécurité | Accueil des visiteurs et enregistrement de leur départ. |
 | Employé | Réservations, audiences, demandes courantes. |
+
+Les droits SMART HUB dépendent uniquement de ce rôle, modifiable dans
+*Utilisateurs* ; les cases « super-utilisateur » de Django ne concernent
+que l'admin Django (`/admin`).

@@ -379,42 +379,23 @@ if not DEBUG:
 
 
 # =====================================================================
-# Active Directory de l'entreprise — authentification LDAP (optionnel)
-# Active si LDAP_SERVER_URI est défini dans .env.
-# Nécessite : pip install ldap3
-# =====================================================================
-
-LDAP_SERVER_URI = config('LDAP_SERVER_URI', default='')
-LDAP_DOMAIN = config('LDAP_DOMAIN', default='')
-LDAP_BASE_DN = config('LDAP_BASE_DN', default='')
-LDAP_BIND_DN = config('LDAP_BIND_DN', default='')
-LDAP_BIND_PASSWORD = config('LDAP_BIND_PASSWORD', default='')
-
-if LDAP_SERVER_URI and LDAP_DOMAIN:
-    # Backend LDAP en priorité, local en fallback (admin Django, comptes de test)
-    AUTHENTICATION_BACKENDS = [
-        'applications.utilisateurs.ldap_backend.OseorLDAPBackend',
-        'django.contrib.auth.backends.ModelBackend',
-    ]
-
-
-# =====================================================================
 # Microsoft Entra ID (ex-Azure AD) — authentification SSO (optionnel)
 #
 # Actif dès que les trois identifiants de l'application enregistrée dans
-# Entra sont présents dans .env. Sans eux, rien ne change : la page de
-# connexion n'affiche pas le bouton Microsoft et l'application reste sur
-# l'authentification par mot de passe.
+# Entra sont présents dans .env. Sans eux, rien ne change : le bouton
+# Microsoft indique que la connexion n'est pas activée et l'application
+# reste sur l'authentification par mot de passe.
 #
-# À ne pas confondre avec le bloc LDAP ci-dessus, qui vise un Active
-# Directory *sur site* : Entra ID ne parle pas LDAP, les deux intégrations
-# sont distinctes et peuvent coexister.
+# Les mêmes identifiants servent à la synchronisation de l'annuaire
+# (page Utilisateurs), via Microsoft Graph — voir services_entra.py.
 #
 # Côté Entra (App registrations) :
 #   - Redirect URI (Web) : {URL_PUBLIQUE}/oidc/callback/
 #   - Certificates & secrets : un secret client
 #   - Token configuration : ajouter le claim `groups` (et `jobTitle` en
 #     claim optionnel) pour que les rôles OSEOR se déduisent tout seuls
+#   - API permissions : Microsoft Graph > Application > User.Read.All
+#     (+ « Grant admin consent ») pour la synchronisation de l'annuaire
 # =====================================================================
 
 AZURE_TENANT_ID = config('AZURE_TENANT_ID', default='')
@@ -457,12 +438,10 @@ if ENTRA_ID_ACTIF:
     #: et les comptes de service continuent de passer par mot de passe, et
     #: un tenant indisponible ne doit pas fermer l'application à tout le
     #: monde.
-    AUTHENTICATION_BACKENDS = (
-        ['applications.utilisateurs.oidc.OseorOIDCBackend']
-        + list(globals().get('AUTHENTICATION_BACKENDS', [
-            'django.contrib.auth.backends.ModelBackend',
-        ]))
-    )
+    AUTHENTICATION_BACKENDS = [
+        'applications.utilisateurs.oidc.OseorOIDCBackend',
+        'django.contrib.auth.backends.ModelBackend',
+    ]
 
 
 # =====================================================================

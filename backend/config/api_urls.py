@@ -8,7 +8,7 @@ from rest_framework_simplejwt.views import (
 )
 
 from applications.utilisateurs.api import (
-    UtilisateurViewSet, MoiView, ParametreLDAPView, TesterConnexionLDAPView,
+    UtilisateurViewSet, MoiView, EtatEntraView, TesterEntraView,
     EtatSSOView, EchangeCodeSSOView,
 )
 from applications.filiales.api import FilialeViewSet, ServiceViewSet
@@ -75,8 +75,8 @@ urlpatterns = [
     path("auth/sso/etat/", EtatSSOView.as_view(), name="sso_etat"),
     path("auth/sso/echange/", EchangeCodeSSOView.as_view(), name="sso_echange"),
 
-    path("parametres/ldap/", ParametreLDAPView.as_view(), name="parametres_ldap"),
-    path("parametres/ldap/tester/", TesterConnexionLDAPView.as_view(), name="parametres_ldap_tester"),
+    path("parametres/entra/", EtatEntraView.as_view(), name="parametres_entra"),
+    path("parametres/entra/tester/", TesterEntraView.as_view(), name="parametres_entra_tester"),
 
     path("tableau-bord/stats/", StatistiquesView.as_view(), name="tableau_bord_stats"),
     path("rapports/administratif/", RapportAdministratifView.as_view(), name="rapport_administratif"),

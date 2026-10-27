@@ -2,7 +2,7 @@ import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
-import { ParametresLDAP } from '../../core/models';
+import { EtatEntra } from '../../core/models';
 import { IconComponent } from '../../shared/icon.component';
 import { DatesNaissanceService, LigneDateNaissance } from '../../core/gestion.service';
 
@@ -21,55 +21,39 @@ import { DatesNaissanceService, LigneDateNaissance } from '../../core/gestion.se
     <div class="carte-entete">
       <div class="carte-titre">
         <app-icon name="server" [size]="18"/>
-        <h3>Active Directory (LDAP)</h3>
-        @if (parametres()?.configure) {
+        <h3>Microsoft Entra ID</h3>
+        @if (entra()?.actif) {
           <span class="badge validee">Configuré</span>
-        } @else {
+        } @else if (entra()) {
           <span class="badge rouge">Non configuré</span>
         }
       </div>
       <p class="carte-sous-titre">
-        Connexion utilisée par le bouton « Synchroniser depuis Active Directory » de la page
-        Utilisateurs, pour importer/mettre à jour les comptes depuis l'annuaire
-        Active Directory <strong>de l'entreprise</strong> (LDAP). Peu importe où
-        l'application est hébergée (poste local ou serveur en ligne) : ce qui compte,
-        c'est que ce serveur ait un accès réseau au contrôleur de domaine — sur le
-        même réseau, ou via VPN site-à-site si l'hébergement est distant.
+        Annuaire Microsoft de l'entreprise : il sert à la connexion « Se connecter
+        avec Microsoft » et au bouton « Synchroniser depuis Entra ID » de la page
+        Utilisateurs. Les identifiants se règlent dans le fichier <code>.env</code>
+        du serveur (<code>AZURE_TENANT_ID</code>, <code>AZURE_CLIENT_ID</code>,
+        <code>AZURE_CLIENT_SECRET</code>), jamais depuis l'application.
       </p>
     </div>
 
     @if (chargement()) {
       <p class="txt-attente">Chargement…</p>
-    } @else {
-      <div class="ligne">
-        <div class="champ">
-          <label>Adresse du serveur LDAP</label>
-          <input [(ngModel)]="form.server_uri" placeholder="ldap://192.168.1.10" />
-        </div>
-        <div class="champ">
-          <label>Domaine NetBIOS</label>
-          <input [(ngModel)]="form.domaine" placeholder="OSEOR" />
-        </div>
-      </div>
-      <div class="ligne">
-        <div class="champ">
-          <label>Base DN</label>
-          <input [(ngModel)]="form.base_dn" placeholder="DC=oseor,DC=local" />
-        </div>
-        <div class="champ">
-          <label>DN du compte de service</label>
-          <input [(ngModel)]="form.bind_dn" placeholder="CN=svcOseor,OU=Services,DC=oseor,DC=local" />
-        </div>
-      </div>
-      <div class="ligne">
-        <div class="champ">
-          <label>
-            Mot de passe du compte de service
-            {{ parametres()?.mot_de_passe_defini ? '(laisser vide = inchangé)' : '' }}
-          </label>
-          <input type="password" [(ngModel)]="form.bind_password" />
-        </div>
-      </div>
+    } @else if (entra(); as e) {
+      <dl class="valeurs">
+        <dt>ID de l'annuaire (tenant)</dt>
+        <dd>{{ e.tenant_id || '—' }}</dd>
+        <dt>ID de l'application (client)</dt>
+        <dd>{{ e.client_id || '—' }}</dd>
+        <dt>URI de redirection à inscrire (type Web)</dt>
+        <dd><code>{{ e.url_retour }}</code></dd>
+      </dl>
+
+      <p class="carte-sous-titre">
+        Pour la synchronisation, l'application doit aussi avoir la permission
+        Microsoft Graph <strong>User.Read.All</strong> (type « Application »),
+        avec le consentement administrateur accordé dans Entra.
+      </p>
 
       @if (message()) {
         <div class="alerte" [class.err]="!messageOk()" [class.ok]="messageOk()">
@@ -78,13 +62,9 @@ import { DatesNaissanceService, LigneDateNaissance } from '../../core/gestion.se
       }
 
       <div class="boutons">
-        <button class="btn secondaire" (click)="tester()" [disabled]="test_en_cours() || enregistrement_en_cours()">
+        <button class="btn secondaire" (click)="tester()" [disabled]="test_en_cours() || !e.actif">
           @if (test_en_cours()) { <span class="spinner petit"></span> Test en cours… }
           @else { Tester la connexion }
-        </button>
-        <button class="btn vert" (click)="enregistrer()" [disabled]="enregistrement_en_cours() || test_en_cours()">
-          @if (enregistrement_en_cours()) { <span class="spinner petit"></span> Enregistrement… }
-          @else { Enregistrer }
         </button>
       </div>
     }
@@ -128,6 +108,12 @@ import { DatesNaissanceService, LigneDateNaissance } from '../../core/gestion.se
         }
       </div>
 
+      @if (messageDates()) {
+        <div class="alerte" [class.err]="!messageDatesOk()" [class.ok]="messageDatesOk()">
+          <app-icon [name]="messageDatesOk() ? 'checkCircle' : 'close'" [size]="16"/> {{ messageDates() }}
+        </div>
+      }
+
       <div class="boutons">
         <button class="btn vert" [disabled]="!modifiees() || envoiDates()"
                 (click)="enregistrerDates()">
@@ -166,12 +152,11 @@ import { DatesNaissanceService, LigneDateNaissance } from '../../core/gestion.se
 
     .txt-attente { color: var(--txt-2); font-size: .85rem; }
 
-    .ligne { display: flex; gap: 1rem; margin-bottom: .9rem; }
-    .champ { flex: 1; display: flex; flex-direction: column; gap: .3rem; }
-    .champ label { font-size: .78rem; font-weight: 600; color: var(--txt-2); }
-    .champ input {
-      border: 1px solid var(--bord); border-radius: 8px; padding: .55rem .7rem; font-size: .85rem;
-    }
+    .valeurs { display: grid; grid-template-columns: max-content 1fr; gap: .45rem 1.2rem;
+      margin: 0 0 1rem; font-size: .84rem; }
+    .valeurs dt { font-weight: 600; color: var(--txt-2); }
+    .valeurs dd { margin: 0; word-break: break-all; }
+    @media (max-width: 640px) { .valeurs { grid-template-columns: 1fr; } }
 
     .alerte { display: flex; align-items: center; gap: .5rem; margin: .8rem 0; padding: .6rem .9rem;
       border-radius: 8px; font-size: .83rem; }
@@ -182,19 +167,18 @@ import { DatesNaissanceService, LigneDateNaissance } from '../../core/gestion.se
   `],
 })
 export class AdministrationComponent implements OnInit {
-  parametres = signal<ParametresLDAP | null>(null);
+  entra = signal<EtatEntra | null>(null);
   chargement = signal(true);
   test_en_cours = signal(false);
-  enregistrement_en_cours = signal(false);
   message = signal('');
   messageOk = signal(false);
-
-  form: any = { server_uri: '', domaine: '', base_dn: '', bind_dn: '', bind_password: '' };
 
   // ------------------------------------------------ dates de naissance
   lignes = signal<LigneDateNaissance[]>([]);
   chargementDates = signal(true);
   envoiDates = signal(false);
+  messageDates = signal('');
+  messageDatesOk = signal(false);
   recherche = '';
   /** Saisie en cours, indexée par identifiant. */
   saisies: Record<number, string> = {};
@@ -257,19 +241,19 @@ export class AdministrationComponent implements OnInit {
     if (!Object.keys(changements).length) return;
 
     this.envoiDates.set(true);
-    this.message.set('');
+    this.messageDates.set('');
 
     this.dates.enregistrer(changements).subscribe({
       next: (r) => {
         this.envoiDates.set(false);
         this.initiales = { ...this.saisies };
-        this.messageOk.set(true);
-        this.message.set(`${r.mis_a_jour} date(s) enregistrée(s).`);
+        this.messageDatesOk.set(true);
+        this.messageDates.set(`${r.mis_a_jour} date(s) enregistrée(s).`);
       },
       error: (e) => {
         this.envoiDates.set(false);
-        this.messageOk.set(false);
-        this.message.set(e?.error?.detail || "Échec de l'enregistrement.");
+        this.messageDatesOk.set(false);
+        this.messageDates.set(e?.error?.detail || "Échec de l'enregistrement.");
       },
     });
   }
@@ -284,20 +268,16 @@ export class AdministrationComponent implements OnInit {
 
   charger(): void {
     this.chargement.set(true);
-    this.api.parametresLDAP().subscribe((p) => {
-      this.parametres.set(p);
-      this.form = {
-        server_uri: p.server_uri, domaine: p.domaine, base_dn: p.base_dn,
-        bind_dn: p.bind_dn, bind_password: '',
-      };
-      this.chargement.set(false);
+    this.api.etatEntra().subscribe({
+      next: (e) => { this.entra.set(e); this.chargement.set(false); },
+      error: () => this.chargement.set(false),
     });
   }
 
   tester(): void {
     this.message.set('');
     this.test_en_cours.set(true);
-    this.api.testerLDAP(this.form).subscribe({
+    this.api.testerEntra().subscribe({
       next: (r) => {
         this.test_en_cours.set(false);
         this.messageOk.set(true);
@@ -307,27 +287,6 @@ export class AdministrationComponent implements OnInit {
         this.test_en_cours.set(false);
         this.messageOk.set(false);
         this.message.set(e?.error?.detail || 'Échec du test de connexion.');
-      },
-    });
-  }
-
-  enregistrer(): void {
-    this.message.set('');
-    this.enregistrement_en_cours.set(true);
-    this.api.majParametresLDAP(this.form).subscribe({
-      next: (p) => {
-        this.enregistrement_en_cours.set(false);
-        this.parametres.set(p);
-        this.form.bind_password = '';
-        this.messageOk.set(true);
-        this.message.set('Configuration enregistrée.');
-      },
-      error: (e) => {
-        this.enregistrement_en_cours.set(false);
-        this.messageOk.set(false);
-        this.message.set(
-          Object.values(e?.error || { x: ['Erreur.'] }).flat().join(' '),
-        );
       },
     });
   }
