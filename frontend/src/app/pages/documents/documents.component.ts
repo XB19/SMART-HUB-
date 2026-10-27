@@ -1,10 +1,11 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { IconComponent } from '../../shared/icon.component';
+import { NavigationService } from '../../core/navigation.service';
 import {
   ConfigurationDocument, DocumentAdministratif, TypeDocumentAdministratif,
   StatutLivraison, LIBELLES_STATUT_LIVRAISON,
@@ -357,7 +358,9 @@ export class DocumentsComponent implements OnInit {
 
   form: any = { champs_entete: {}, lignes: [], montant_total: '0.00', document_source: null };
 
-  constructor(private route: ActivatedRoute, private api: ApiService, public auth: AuthService) {}
+  constructor(private route: ActivatedRoute, private api: ApiService, public auth: AuthService) {
+    inject(NavigationService).vuesLocales(this.selection, this.formVisible);
+  }
 
   get champsEntete() {
     return () => CHAMPS_ENTETE[this.type] || [];

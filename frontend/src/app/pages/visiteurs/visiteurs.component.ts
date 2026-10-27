@@ -27,7 +27,7 @@ import { Visite, Filiale, Utilisateur, TypePiece } from '../../core/models';
   @if (peutEnregistrer()) {
     <div class="carte anim-entree">
       <h3>Enregistrer une arrivée</h3>
-      <p class="aide">La pièce d'identité du visiteur est conservée à l'accueil jusqu'à son départ. La demande part au secrétariat pour validation.</p>
+      <p class="aide">La pièce d'identité du visiteur est conservée à l'accueil en échange d'un badge, jusqu'à son départ. La demande part au secrétariat pour validation.</p>
       <form (ngSubmit)="enregistrerArrivee()">
         <div class="ligne">
           <div class="champ">
@@ -61,7 +61,9 @@ import { Visite, Filiale, Utilisateur, TypePiece } from '../../core/models';
             <label>Filiale visitée</label>
             <select [ngModel]="form.filiale" (ngModelChange)="choisirFiliale($event)" name="filiale" required>
               <option [ngValue]="null">— Choisir —</option>
-              @for (f of filiales(); track f.id) { <option [ngValue]="f.id">{{ f.nom }}</option> }
+              @for (f of filiales(); track f.id) {
+                @if (f.active) { <option [ngValue]="f.id">{{ f.nom }}</option> }
+              }
             </select>
           </div>
           <div class="champ">
@@ -72,9 +74,16 @@ import { Visite, Filiale, Utilisateur, TypePiece } from '../../core/models';
             </select>
           </div>
         </div>
-        <div class="champ">
-          <label>Motif de la visite</label>
-          <input type="text" [(ngModel)]="form.motif" name="motif" placeholder="Ex. rendez-vous, livraison, entretien…" required autocomplete="off" />
+        <div class="ligne">
+          <div class="champ">
+            <label>Motif de la visite</label>
+            <input type="text" [(ngModel)]="form.motif" name="motif" placeholder="Ex. rendez-vous, livraison, entretien…" required autocomplete="off" />
+          </div>
+          <div class="champ">
+            <label>Numéro de badge</label>
+            <input type="text" [ngModel]="form.numero_badge" (ngModelChange)="fixerNumeroBadge($event)"
+                   name="numero_badge" maxlength="20" placeholder="Ex. B-12" required autocomplete="off" />
+          </div>
         </div>
         <button type="submit" class="btn cta" [disabled]="enregistrementEnCours() || !formValide()">
           @if (enregistrementEnCours()) { <span class="spinner petit"></span> Enregistrement… }
@@ -93,13 +102,14 @@ import { Visite, Filiale, Utilisateur, TypePiece } from '../../core/models';
     } @else {
       <table class="tbl">
         <thead>
-          <tr><th>Visiteur</th><th>Filiale</th><th>Personne visitée</th><th>Motif</th><th>Pièce d'identité</th><th>Enregistré par</th><th>Heure</th>
+          <tr><th>Visiteur</th><th>Badge</th><th>Filiale</th><th>Personne visitée</th><th>Motif</th><th>Pièce d'identité</th><th>Enregistré par</th><th>Heure</th>
             @if (peutTraiter()) { <th></th> }</tr>
         </thead>
         <tbody class="stagger">
           @for (v of enAttente(); track v.id) {
             <tr [id]="'visite-' + v.id" [class.surlignee]="ligneSurlignee() === v.id">
               <td>{{ v.prenom }} {{ v.nom }}</td>
+              <td>@if (v.numero_badge) { <span class="badge-num">{{ v.numero_badge }}</span> } @else { — }</td>
               <td>{{ v.filiale_nom }}</td>
               <td>{{ v.personne_visitee_nom }}</td>
               <td>{{ v.motif }}</td>
@@ -132,13 +142,14 @@ import { Visite, Filiale, Utilisateur, TypePiece } from '../../core/models';
     } @else if (!chargement()) {
       <table class="tbl">
         <thead>
-          <tr><th>Visiteur</th><th>Filiale</th><th>Personne visitée</th><th>Motif</th><th>Pièce d'identité</th><th>Validé par</th><th>Heure d'arrivée</th>
+          <tr><th>Visiteur</th><th>Badge</th><th>Filiale</th><th>Personne visitée</th><th>Motif</th><th>Pièce d'identité</th><th>Validé par</th><th>Heure d'arrivée</th>
             @if (peutMarquerDepart()) { <th></th> }</tr>
         </thead>
         <tbody class="stagger">
           @for (v of presents(); track v.id) {
             <tr [id]="'visite-' + v.id" [class.surlignee]="ligneSurlignee() === v.id">
               <td>{{ v.prenom }} {{ v.nom }}</td>
+              <td>@if (v.numero_badge) { <span class="badge-num">{{ v.numero_badge }}</span> } @else { — }</td>
               <td>{{ v.filiale_nom }}</td>
               <td>{{ v.personne_visitee_nom }}</td>
               <td>{{ v.motif }}</td>
@@ -167,12 +178,13 @@ import { Visite, Filiale, Utilisateur, TypePiece } from '../../core/models';
     } @else if (!chargement()) {
       <table class="tbl">
         <thead>
-          <tr><th>Visiteur</th><th>Filiale</th><th>Personne visitée</th><th>Motif</th><th>Arrivée</th><th>Départ</th><th>Statut</th></tr>
+          <tr><th>Visiteur</th><th>Badge</th><th>Filiale</th><th>Personne visitée</th><th>Motif</th><th>Arrivée</th><th>Départ</th><th>Statut</th></tr>
         </thead>
         <tbody class="stagger">
           @for (v of historique(); track v.id) {
             <tr [id]="'visite-' + v.id" [class.surlignee]="ligneSurlignee() === v.id">
               <td>{{ v.prenom }} {{ v.nom }}</td>
+              <td>@if (v.numero_badge) { <span class="badge-num">{{ v.numero_badge }}</span> } @else { — }</td>
               <td>{{ v.filiale_nom }}</td>
               <td>{{ v.personne_visitee_nom }}</td>
               <td>{{ v.motif }}</td>
@@ -200,6 +212,9 @@ import { Visite, Filiale, Utilisateur, TypePiece } from '../../core/models';
     .espace { margin-top: 1.2rem; }
     .actions { display: flex; gap: .4rem; flex-wrap: wrap; }
     .motif-refus { font-size: .76rem; color: var(--txt-3); margin-top: .2rem; }
+    .badge-num { display: inline-block; padding: .1rem .45rem; border-radius: 6px;
+      background: var(--bg); color: var(--navy); border: 1px solid var(--bord); font-weight: 700; font-size: .78rem;
+      font-variant-numeric: tabular-nums; white-space: nowrap; }
     tr.surlignee { background: #fff7e6 !important; box-shadow: inset 3px 0 0 var(--accent); animation: pulseSurlignee 1.6s ease-out 1; }
     @keyframes pulseSurlignee { 0% { background: #ffedc2 !important; } 100% { background: #fff7e6 !important; } }
   `],
@@ -216,11 +231,16 @@ export class VisiteursComponent implements OnInit {
   chargementPersonnes = signal(false);
 
   form: {
-    nom: string; prenom: string; type_piece: TypePiece; numero_piece: string; motif: string;
-    filiale: number | null; personne_visitee: number | null;
-  } = {
-    nom: '', prenom: '', type_piece: 'CNI', numero_piece: '', motif: '', filiale: null, personne_visitee: null,
-  };
+    nom: string; prenom: string; type_piece: TypePiece; numero_piece: string; numero_badge: string;
+    motif: string; filiale: number | null; personne_visitee: number | null;
+  } = this.formulaireVide();
+
+  private formulaireVide() {
+    return {
+      nom: '', prenom: '', type_piece: 'CNI' as TypePiece, numero_piece: '', numero_badge: '',
+      motif: '', filiale: null, personne_visitee: null,
+    };
+  }
 
   constructor(
     private api: ApiService, public auth: AuthService, private route: ActivatedRoute,
@@ -272,7 +292,8 @@ export class VisiteursComponent implements OnInit {
   formValide(): boolean {
     return !!(
       this.form.nom.trim() && this.form.prenom.trim() && this.form.numero_piece.trim()
-      && this.form.motif.trim() && this.form.filiale && this.form.personne_visitee
+      && this.form.numero_badge.trim() && this.form.motif.trim()
+      && this.form.filiale && this.form.personne_visitee
     );
   }
 
@@ -293,6 +314,11 @@ export class VisiteursComponent implements OnInit {
       : valeur.replace(/\D/g, '');
   }
 
+  /** Badge : lettres, chiffres et tirets, en majuscules (ex. B-12). */
+  fixerNumeroBadge(valeur: string): void {
+    this.form.numero_badge = valeur.replace(/[^A-Za-z0-9-]/g, '').toUpperCase();
+  }
+
   enAttente() {
     return this.visites().filter((v) => v.statut === 'EN_ATTENTE');
   }
@@ -306,7 +332,10 @@ export class VisiteursComponent implements OnInit {
   }
 
   private erreurToast(titre: string, e: any): void {
-    this.toasts.afficher({ titre, message: e?.error?.detail || e?.error?.[0] || 'Erreur inconnue.', type: 'ERROR' });
+    // Erreurs de validation DRF : { champ: [messages] } — on les affiche telles quelles.
+    const champs = e?.error && typeof e.error === 'object' && !e.error.detail
+      ? Object.values(e.error).flat().join(' ') : '';
+    this.toasts.afficher({ titre, message: e?.error?.detail || champs || 'Erreur inconnue.', type: 'ERROR' });
   }
 
   charger(): void {
@@ -325,6 +354,7 @@ export class VisiteursComponent implements OnInit {
       prenom: this.form.prenom.trim(),
       type_piece: this.form.type_piece,
       numero_piece: this.form.numero_piece.trim(),
+      numero_badge: this.form.numero_badge.trim(),
       motif: this.form.motif.trim(),
       filiale: this.form.filiale!,
       personne_visitee: this.form.personne_visitee!,
@@ -332,7 +362,7 @@ export class VisiteursComponent implements OnInit {
       next: (v) => {
         this.enregistrementEnCours.set(false);
         this.visites.update((liste) => [v, ...liste]);
-        this.form = { nom: '', prenom: '', type_piece: 'CNI', numero_piece: '', motif: '', filiale: null, personne_visitee: null };
+        this.form = this.formulaireVide();
         this.personnes.set([]);
         this.toasts.succes('Demande envoyée au secrétariat pour validation.');
       },
@@ -399,6 +429,9 @@ export class VisiteursComponent implements OnInit {
       next: (maj) => {
         this.actionEnCours.set(null);
         this.visites.update((liste) => liste.map((x) => (x.id === maj.id ? maj : x)));
+        this.toasts.succes(maj.numero_badge
+          ? `Départ enregistré — récupérez le badge ${maj.numero_badge}.`
+          : 'Départ enregistré.');
       },
       error: (e) => { this.actionEnCours.set(null); this.erreurToast("Impossible d'enregistrer ce départ", e); },
     });

@@ -358,12 +358,21 @@ QUESTIONS_OBSOLETES = [
 class Command(BaseCommand):
     help = "Peuple le contenu initial du chatbot d'aide (FAQ)."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--sans-ecraser", action="store_true",
+            help="N'ajoute que les entrées manquantes : les réponses retouchées "
+                 "depuis l'admin restent telles quelles.",
+        )
+
     def handle(self, *args, **options):
         crees = 0
         maj = 0
         EntreeAide.objects.filter(question__in=QUESTIONS_OBSOLETES).delete()
+        enregistrer = (EntreeAide.objects.get_or_create if options["sans_ecraser"]
+                       else EntreeAide.objects.update_or_create)
         for entree in ENTREES:
-            _, cree = EntreeAide.objects.update_or_create(
+            _, cree = enregistrer(
                 module=entree["module"],
                 question=entree["question"],
                 defaults={
@@ -376,6 +385,7 @@ class Command(BaseCommand):
             crees += cree
             maj += not cree
 
+        suite = "déjà présente(s)" if options["sans_ecraser"] else "mise(s) à jour"
         self.stdout.write(self.style.SUCCESS(
-            f"Aide : {crees} entrée(s) créée(s), {maj} mise(s) à jour."
+            f"Aide : {crees} entrée(s) créée(s), {maj} {suite}."
         ))

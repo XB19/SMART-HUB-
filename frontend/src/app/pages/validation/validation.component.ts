@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, ActivatedRoute } from '@angular/router';
 import { forkJoin } from 'rxjs';
@@ -8,6 +8,7 @@ import { DialogueService } from '../../core/dialogue.service';
 import { ToastService } from '../../core/toast.service';
 import { Reservation } from '../../core/models';
 import { IconComponent } from '../../shared/icon.component';
+import { NavigationService } from '../../core/navigation.service';
 import {
   GroupeReservations, grouperParSerie, libelleSerie, trouverGroupe,
 } from '../../shared/serie.util';
@@ -128,7 +129,9 @@ export class ValidationComponent implements OnInit {
   constructor(
     private api: ApiService, private auth: AuthService, private route: ActivatedRoute,
     private dialogue: DialogueService, private toasts: ToastService,
-  ) {}
+  ) {
+    inject(NavigationService).vuesLocales(this.serieOuverte);
+  }
 
   ngOnInit(): void { this.charger(); }
 

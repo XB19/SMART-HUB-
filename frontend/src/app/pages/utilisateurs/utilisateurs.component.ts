@@ -1,9 +1,10 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { Utilisateur, Filiale } from '../../core/models';
 import { IconComponent } from '../../shared/icon.component';
+import { NavigationService } from '../../core/navigation.service';
 
 interface ResultatSync {
   crees: number;
@@ -121,7 +122,7 @@ interface ResultatSync {
           <select [(ngModel)]="form.filiale">
             <option [ngValue]="null">— aucune —</option>
             @for (f of filiales(); track f.id) {
-              <option [ngValue]="f.id">{{ f.nom }}</option>
+              @if (f.active || f.id === form.filiale) { <option [ngValue]="f.id">{{ f.nom }}</option> }
             }
           </select>
         </div>
@@ -334,7 +335,9 @@ export class UtilisateursComponent implements OnInit {
 
   utilisateurEnEdition = signal<Utilisateur | null>(null);
 
-  constructor(private api: ApiService) {}
+  constructor(private api: ApiService) {
+    inject(NavigationService).vuesLocales(this.formVisible);
+  }
 
   ngOnInit(): void {
     this.charger();

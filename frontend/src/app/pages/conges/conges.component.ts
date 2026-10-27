@@ -1,9 +1,10 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IconComponent } from '../../shared/icon.component';
 import { ToastService } from '../../core/toast.service';
 import { AuthService } from '../../core/auth.service';
+import { NavigationService } from '../../core/navigation.service';
 import {
   CongesService, DemandeConge, MotifPermission, MouvementConge, SoldeConge,
 } from '../../core/vie-interne.service';
@@ -469,7 +470,9 @@ export class CongesComponent implements OnInit {
     private conges: CongesService,
     private toast: ToastService,
     public auth: AuthService,
-  ) {}
+  ) {
+    inject(NavigationService).vuesLocales(this.formulaireOuvert);
+  }
 
   ngOnInit(): void {
     this.recharger();

@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
@@ -8,6 +8,7 @@ import { ToastService } from '../../core/toast.service';
 import { Salle, Equipement, Filiale } from '../../core/models';
 import { SalleVisuelleComponent } from '../../shared/salle-visuelle.component';
 import { IconComponent } from '../../shared/icon.component';
+import { NavigationService } from '../../core/navigation.service';
 
 @Component({
   selector: 'app-salles',
@@ -25,7 +26,9 @@ import { IconComponent } from '../../shared/icon.component';
         <div class="champ"><label>Nom</label><input [(ngModel)]="form.nom" /></div>
         <div class="champ"><label>Filiale propriétaire</label>
           <select [(ngModel)]="form.filiale" [disabled]="!estAdmin()">
-            @for (f of filiales(); track f.id) { <option [ngValue]="f.id">{{ f.nom }}</option> }
+            @for (f of filiales(); track f.id) {
+              @if (f.active || f.id === form.filiale) { <option [ngValue]="f.id">{{ f.nom }}</option> }
+            }
           </select>
         </div>
         <div class="champ"><label>Capacité</label>
@@ -102,7 +105,9 @@ export class SallesComponent implements OnInit {
   constructor(
     private api: ApiService, private auth: AuthService,
     private dialogue: DialogueService, private toasts: ToastService,
-  ) {}
+  ) {
+    inject(NavigationService).vuesLocales(this.formVisible);
+  }
 
   ngOnInit(): void {
     this.charger();
@@ -122,7 +127,7 @@ export class SallesComponent implements OnInit {
 
   nouveau(): void {
     const u = this.auth.utilisateur();
-    this.form = { id: null, nom: '', filiale: u?.filiale ?? this.filiales()[0]?.id ?? null,
+    this.form = { id: null, nom: '', filiale: u?.filiale ?? this.filiales().find((f) => f.active)?.id ?? null,
       capacite: 10, equipements: [] };
     this.photoFile = null; this.photoNom.set('');
     this.erreur.set(''); this.formVisible.set(true);

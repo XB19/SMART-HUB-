@@ -1,10 +1,11 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IconComponent } from '../../shared/icon.component';
 import { ToastService } from '../../core/toast.service';
 import { AuthService } from '../../core/auth.service';
 import { Prestation, PrestationsService } from '../../core/vie-interne.service';
+import { NavigationService } from '../../core/navigation.service';
 
 /**
  * Prestations de services, suivies par le service qui les réalise.
@@ -202,7 +203,9 @@ export class PrestationsComponent implements OnInit {
     private service: PrestationsService,
     private toast: ToastService,
     public auth: AuthService,
-  ) {}
+  ) {
+    inject(NavigationService).vuesLocales(this.formulaire);
+  }
 
   ngOnInit(): void { this.charger(); }
 

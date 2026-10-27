@@ -29,12 +29,12 @@ docker compose exec api python manage.py createsuperuser
 Le compte créé par `createsuperuser` est **administrateur** de SMART HUB
 (rôle « Administrateur Groupe ») et de l'admin Django.
 
-Pour un jeu de données de démonstration (comptes de test, filiales, salles) :
+Pour un jeu de données de démonstration (comptes de test, filiales, salles),
+en local uniquement :
 
 ```bash
 docker compose exec api python manage.py loaddata fixtures/donnees_test.json
-docker compose exec api python manage.py seed_config_documents
-docker compose exec api python manage.py seed_aide
+docker compose exec api python manage.py initialiser_plateforme
 ```
 
 ## Déploiement sur un VPS
@@ -60,8 +60,21 @@ docker compose -f docker-compose.yml -f docker-compose.vps.yml \
     exec api python manage.py createsuperuser
 ```
 
-L'application répond ensuite sur `https://<DOMAINE>`. Les migrations
-s'appliquent seules au démarrage du conteneur `api`.
+L'application répond ensuite sur `https://<DOMAINE>` (le premier
+démarrage prend quelques minutes, le temps de construire les images et
+d'obtenir le certificat HTTPS).
+
+À chaque démarrage, le conteneur `api` applique les migrations puis
+initialise ce qui manque : filiale d'accueil **OSEOR**, configuration des
+documents de chaque filiale, tâches planifiées, jours fériés, aide en
+ligne. Rien de ce qu'un administrateur a ajusté n'est réécrit.
+
+**Ensuite, dans l'application** (connecté avec le super-utilisateur) :
+
+1. *Administration → Filiales* : compléter la filiale OSEOR et créer les
+   autres filiales du groupe ;
+2. *Utilisateurs* : créer les comptes, ou *Synchroniser depuis Entra ID* ;
+3. *Administration → Microsoft Entra ID* : *Tester la connexion*.
 
 **Mettre à jour**
 
@@ -73,8 +86,21 @@ docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
 **Consulter les journaux**
 
 ```bash
+docker compose -f docker-compose.yml -f docker-compose.vps.yml ps
 docker compose -f docker-compose.yml -f docker-compose.vps.yml logs api --tail 100
 ```
+
+**Sauvegarder** — la base et les fichiers téléversés vivent dans des
+volumes Docker (`db_data`, `media_data`), conservés par `down` et par les
+mises à jour. Les sauvegarder régulièrement :
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.vps.yml \
+    exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > sauvegarde_$(date +%F).sql
+```
+
+Ne jamais lancer `docker compose down -v` : l'option `-v` supprime les
+volumes, donc la base et les fichiers.
 
 **Ce que fait `docker-compose.vps.yml`** : Caddy écoute sur 80/443 et relaie
 tout à nginx ; l'API, le WebSocket et nginx ne sont plus exposés sur
@@ -141,7 +167,7 @@ développement. Tests du backend : `python manage.py test`.
 
 | Rôle | Accès principal |
 |---|---|
-| Administrateur Groupe | Accès complet, y compris Administration et gestion des utilisateurs. |
+| Administrateur Groupe | Accès complet, y compris le menu Administration : filiales, utilisateurs, journal d'audit, Entra ID. |
 | Directeur | Approuve/décline les documents et audiences de tout le groupe. |
 | Secrétaire | Réservation de salles, audiences, visiteurs, bons de commande, factures, notes internes. |
 | Chef de service | Contrats, prestations de services, gestion de stocks. |

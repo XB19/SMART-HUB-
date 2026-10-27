@@ -36,6 +36,9 @@ export interface Filiale {
   telephone?: string;
   adresse?: string;
   active: boolean;
+  nb_utilisateurs?: number;
+  nb_services?: number;
+  nb_salles?: number;
 }
 
 export interface Salle {
@@ -424,6 +427,7 @@ export interface Visite {
   type_piece: TypePiece;
   type_piece_libelle: string;
   numero_piece: string;
+  numero_badge: string;
   motif: string;
   filiale: number;
   filiale_nom: string;

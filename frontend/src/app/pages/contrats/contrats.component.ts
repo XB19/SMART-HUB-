@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -6,6 +6,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { IconComponent } from '../../shared/icon.component';
 import { Contrat, LIBELLES_TYPE_CONTRAT, TypeContrat } from '../../core/models';
+import { NavigationService } from '../../core/navigation.service';
 
 const TYPES_CONTRAT: TypeContrat[] = ['FOURNISSEUR', 'CLIENT', 'PRESTATAIRE', 'BAIL', 'AUTRE'];
 
@@ -253,7 +254,9 @@ export class ContratsComponent implements OnInit {
 
   form: any = {};
 
-  constructor(private route: ActivatedRoute, private api: ApiService, public auth: AuthService) {}
+  constructor(private route: ActivatedRoute, private api: ApiService, public auth: AuthService) {
+    inject(NavigationService).vuesLocales(this.selection, this.formVisible);
+  }
 
   ngOnInit(): void {
     this.charger();

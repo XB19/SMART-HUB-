@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { Component, OnInit, computed, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -8,6 +8,7 @@ import { DialogueService } from '../../core/dialogue.service';
 import { ToastService } from '../../core/toast.service';
 import { Audience, Salle, Utilisateur } from '../../core/models';
 import { IconComponent } from '../../shared/icon.component';
+import { NavigationService } from '../../core/navigation.service';
 
 @Component({
   selector: 'app-audiences',
@@ -263,7 +264,12 @@ export class AudiencesComponent implements OnInit {
   constructor(
     private route: ActivatedRoute, private api: ApiService, public auth: AuthService,
     private dialogue: DialogueService, private toasts: ToastService,
-  ) {}
+  ) {
+    inject(NavigationService).vuesLocales(
+      this.selection,
+      { ouverte: () => this.mode() === 'creation', fermer: () => this.mode.set('vide') },
+    );
+  }
 
   private erreurToast(titre: string, e: any): void {
     this.toasts.afficher({ titre, message: e?.error?.detail || 'Erreur inconnue.', type: 'ERROR' });

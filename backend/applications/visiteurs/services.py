@@ -45,7 +45,7 @@ def refuser_visite(visite, secretaire, motif_refus):
 
 
 def marquer_depart_visite(visite):
-    """Le visiteur récupère sa pièce d'identité et quitte les locaux."""
+    """Le visiteur rend son badge, récupère sa pièce d'identité et quitte les locaux."""
     visite.statut = Visite.Statut.TERMINEE
     visite.heure_depart = timezone.now()
     visite.save(update_fields=["statut", "heure_depart"])

@@ -1,7 +1,10 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from .models import CODE_FILIALE_ACCUEIL, Visite, _VALIDATEURS_NUMERO_PAR_TYPE
+from .models import (
+    CODE_FILIALE_ACCUEIL, STATUTS_BADGE_EN_COURS, Visite,
+    _VALIDATEURS_NUMERO_PAR_TYPE, valider_numero_badge,
+)
 
 
 class VisiteSerializer(serializers.ModelSerializer):
@@ -13,6 +16,7 @@ class VisiteSerializer(serializers.ModelSerializer):
     # `type_piece`, vérifié dans `validate()` ci-dessous (une CNI est
     # numérique, un passeport mélange lettres et chiffres).
     numero_piece = serializers.CharField(max_length=30)
+    numero_badge = serializers.CharField(max_length=20)
     motif = serializers.CharField(max_length=255)
     type_piece_libelle = serializers.CharField(source="get_type_piece_display", read_only=True)
     # OSEOR est un groupe : la filiale visitée n'est pas forcément celle de
@@ -38,6 +42,7 @@ class VisiteSerializer(serializers.ModelSerializer):
             "type_piece",
             "type_piece_libelle",
             "numero_piece",
+            "numero_badge",
             "motif",
             "filiale",
             "filiale_nom",
@@ -76,6 +81,29 @@ class VisiteSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"numero_piece": erreur.messages})
 
         return attrs
+
+    def validate_filiale(self, filiale):
+        if not filiale.active:
+            raise serializers.ValidationError("Cette filiale est désactivée.")
+        return filiale
+
+    def validate_numero_badge(self, valeur):
+        """Majuscules, format, et badge libre : aucun visiteur présent ne le porte."""
+        valeur = valeur.strip().upper()
+        try:
+            valider_numero_badge(valeur)
+        except DjangoValidationError as erreur:
+            raise serializers.ValidationError(erreur.messages)
+
+        porteur = Visite.objects.filter(
+            numero_badge=valeur, statut__in=STATUTS_BADGE_EN_COURS,
+        ).exclude(pk=getattr(self.instance, "pk", None)).first()
+        if porteur:
+            raise serializers.ValidationError(
+                f"Le badge {valeur} est déjà attribué à {porteur.prenom} {porteur.nom}, "
+                "toujours présent(e). Choisissez un autre badge."
+            )
+        return valeur
 
     def create(self, validated_data):
         request = self.context.get("request")

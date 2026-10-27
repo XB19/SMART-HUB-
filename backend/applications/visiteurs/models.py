@@ -13,6 +13,13 @@ _VALIDATEURS_NUMERO_PAR_TYPE = {
     ),
 }
 
+valider_numero_badge = RegexValidator(
+    r"^[A-Z0-9-]+$", "Le numéro de badge ne doit contenir que des lettres, des chiffres et des tirets."
+)
+
+#: Statuts d'un visiteur encore dans les locaux, donc porteur de son badge.
+STATUTS_BADGE_EN_COURS = ("EN_ATTENTE", "VALIDEE")
+
 # L'accueil est commun à tout le groupe (une seule réception physique) :
 # quelle que soit la filiale visitée, c'est toujours la secrétaire de
 # cette filiale-ci (le siège) qui valide, jamais celle de la filiale
@@ -61,6 +68,17 @@ class Visite(models.Model):
         # vérifié dans VisiteSerializer.validate (voir _VALIDATEURS_NUMERO_PAR_TYPE).
         verbose_name="Numéro de pièce d'identité",
         max_length=30,
+    )
+
+    numero_badge = models.CharField(
+        # Vide autorisé en base pour les visites antérieures au badge ; le
+        # champ est rendu obligatoire dans le serializer.
+        verbose_name="Numéro de badge",
+        help_text="Badge remis au visiteur à l'arrivée, récupéré à son départ.",
+        max_length=20,
+        blank=True,
+        default="",
+        validators=[valider_numero_badge],
     )
 
     motif = models.CharField(
@@ -133,6 +151,15 @@ class Visite(models.Model):
         verbose_name = "Visite"
         verbose_name_plural = "Visites"
         ordering = ["-heure_arrivee"]
+        constraints = [
+            # Un badge physique ne peut être porté que par un visiteur à la
+            # fois : il redevient libre au départ ou au refus.
+            models.UniqueConstraint(
+                fields=["numero_badge"],
+                condition=models.Q(statut__in=STATUTS_BADGE_EN_COURS) & ~models.Q(numero_badge=""),
+                name="badge_unique_parmi_visiteurs_presents",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.prenom} {self.nom} — {self.heure_arrivee:%d/%m/%Y %H:%M}"

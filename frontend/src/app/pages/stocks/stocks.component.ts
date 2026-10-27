@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -6,6 +6,7 @@ import { ApiService } from '../../core/api.service';
 import { ToastService } from '../../core/toast.service';
 import { Article, MouvementStock } from '../../core/models';
 import { IconComponent } from '../../shared/icon.component';
+import { NavigationService } from '../../core/navigation.service';
 
 @Component({
   selector: 'app-stocks',
@@ -175,7 +176,9 @@ export class StocksComponent implements OnInit {
   form: any = {};
   mouvementForm: any = { type_mouvement: 'ENTREE', quantite: 1, motif: '' };
 
-  constructor(private route: ActivatedRoute, private api: ApiService, private toasts: ToastService) {}
+  constructor(private route: ActivatedRoute, private api: ApiService, private toasts: ToastService) {
+    inject(NavigationService).vuesLocales(this.formVisible);
+  }
 
   ngOnInit(): void {
     this.charger();

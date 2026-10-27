@@ -1,10 +1,11 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { IconComponent } from '../../shared/icon.component';
 import { ConfigurationDocument, DocumentAdministratif } from '../../core/models';
+import { NavigationService } from '../../core/navigation.service';
 
 interface LigneTransport {
   date: string;
@@ -289,7 +290,9 @@ export class FicheTransportComponent implements OnInit {
   lignes: LigneTransport[] = [];
   fichier: File | null = null;
 
-  constructor(private route: ActivatedRoute, private api: ApiService) {}
+  constructor(private route: ActivatedRoute, private api: ApiService) {
+    inject(NavigationService).vuesLocales(this.selection, this.formVisible);
+  }
 
   ngOnInit(): void {
     this.api.configurationDocument('FICHE_TRANSPORT').subscribe((c) => this.config.set(c));

@@ -7,6 +7,7 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { NotificationsService } from '../../core/notifications.service';
+import { NavigationService } from '../../core/navigation.service';
 import { DialogueService } from '../../core/dialogue.service';
 import { ToastService } from '../../core/toast.service';
 import { Salle, Reservation, Filiale } from '../../core/models';
@@ -513,6 +514,7 @@ export class CalendrierComponent implements OnInit, OnDestroy {
   private lastNotifCount = -1;
 
   constructor() {
+    inject(NavigationService).vuesLocales(this.selection);
     // Rafraîchissement automatique à chaque nouvelle notification (WebSocket)
     effect(() => {
       const count = this.notifs.dernieres().length;

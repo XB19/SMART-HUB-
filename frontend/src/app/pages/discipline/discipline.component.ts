@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IconComponent } from '../../shared/icon.component';
@@ -6,6 +6,7 @@ import { ToastService } from '../../core/toast.service';
 import { AuthService } from '../../core/auth.service';
 import { ApiService } from '../../core/api.service';
 import { ActivatedRoute } from '@angular/router';
+import { NavigationService } from '../../core/navigation.service';
 import {
   BaremeDisciplinaire, DisciplineService, ProcedureDisciplinaire,
 } from '../../core/gestion.service';
@@ -373,7 +374,9 @@ export class DisciplineComponent implements OnInit {
     private toast: ToastService,
     private route: ActivatedRoute,
     public auth: AuthService,
-  ) {}
+  ) {
+    inject(NavigationService).vuesLocales(this.ouverte, this.formulaireOuvert);
+  }
 
   ngOnInit(): void {
     // Le salarié arrive ici par la notification de son dossier : l'ouvrir

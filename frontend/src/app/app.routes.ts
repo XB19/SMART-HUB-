@@ -121,6 +121,12 @@ export const routes: Routes = [
           import('./pages/journal/journal.component').then((m) => m.JournalComponent),
       },
       {
+        path: 'filiales',
+        canActivate: [roleGuard('ADMINISTRATEUR')],
+        loadComponent: () =>
+          import('./pages/filiales/filiales.component').then((m) => m.FilialesComponent),
+      },
+      {
         path: 'administration',
         canActivate: [roleGuard('ADMINISTRATEUR')],
         loadComponent: () =>

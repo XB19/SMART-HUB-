@@ -4,6 +4,7 @@ import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/rou
 import { AuthService } from '../core/auth.service';
 import { ApiService } from '../core/api.service';
 import { NotificationsService } from '../core/notifications.service';
+import { NavigationService } from '../core/navigation.service';
 import { IconComponent } from '../shared/icon.component';
 import { ToastsComponent } from '../shared/toasts.component';
 import { DialogueComponent } from '../shared/dialogue.component';
@@ -55,6 +56,7 @@ import { NotificationItem } from '../core/models';
 
         @if (auth.aRole('ADMINISTRATEUR')) {
           <div class="nav-titre">Administration</div>
+          <a routerLink="/filiales" routerLinkActive="actif"><app-icon name="building"/> Filiales</a>
           <a routerLink="/utilisateurs" routerLinkActive="actif"><app-icon name="settings"/> Utilisateurs</a>
           <a routerLink="/journal" routerLinkActive="actif"><app-icon name="doc"/> Journal d'audit</a>
           <a routerLink="/administration" routerLinkActive="actif"><app-icon name="server"/> Administration</a>
@@ -114,6 +116,12 @@ import { NotificationItem } from '../core/models';
       </header>
 
       <main class="contenu">
+        <!-- Retour commun à toutes les pages : ferme la vue ouverte, sinon page précédente. -->
+        @if (nav.estVisible()) {
+          <button type="button" class="btn-retour" (click)="nav.retour()">
+            <app-icon name="arrowLeft" [size]="15"/> Retour
+          </button>
+        }
         <router-outlet />
       </main>
     </div>
@@ -196,6 +204,15 @@ import { NotificationItem } from '../core/models';
     .notif .t { font-weight: 600; font-size: .85rem; }
     .notif .m { font-size: .8rem; color: var(--txt-2); }
     .contenu { padding: 1.8rem; flex: 1; }
+    .btn-retour {
+      display: inline-flex; align-items: center; gap: .4rem; margin-bottom: 1rem;
+      padding: .38rem .85rem; border: 1px solid var(--bord); border-radius: var(--r-sm);
+      background: var(--surface); color: var(--navy); font-family: inherit;
+      font-size: .82rem; font-weight: 600; cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .btn-retour:hover { background: var(--bg); border-color: var(--bord-fort); }
+    .btn-retour:focus-visible { outline: 2px solid var(--bleu); outline-offset: 2px; }
     @media (max-width: 720px) {
       .sidebar { width: 64px; }
       .logo-txt, nav a span, .sidebar-pied { display: none; }
@@ -209,6 +226,7 @@ export class ShellComponent implements OnInit {
   constructor(
     public auth: AuthService,
     public notifs: NotificationsService,
+    public nav: NavigationService,
     private api: ApiService,
     private router: Router,
   ) {}

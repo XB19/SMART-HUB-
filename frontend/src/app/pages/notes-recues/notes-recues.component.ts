@@ -1,9 +1,10 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { IconComponent } from '../../shared/icon.component';
 import { ToastService } from '../../core/toast.service';
 import { environment } from '../../../environments/environment';
+import { NavigationService } from '../../core/navigation.service';
 
 interface NoteRecue {
   id: number;
@@ -139,7 +140,9 @@ export class NotesRecuesComponent implements OnInit {
 
   private api = environment.apiUrl;
 
-  constructor(private http: HttpClient, private toast: ToastService) {}
+  constructor(private http: HttpClient, private toast: ToastService) {
+    inject(NavigationService).vuesLocales(this.ouverte);
+  }
 
   ngOnInit(): void { this.charger(); }
 

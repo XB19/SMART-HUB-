@@ -69,6 +69,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    # Pret une fois les migrations et l'initialisation terminees : le port
+    # n'ouvre qu'ensuite (voir entrypoint.sh). Les services qui lisent la
+    # base attendent ce signal plutot que de redemarrer en boucle.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8000), 3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 180s
     volumes:
       - media_data:/app/media
       - static_data:/app/staticfiles
@@ -83,7 +92,8 @@ services:
       <<: *django-env
     command: ["daphne", "-b", "0.0.0.0", "-p", "8001", "config.asgi:application"]
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     ports:
       - "8001:8001"
 
@@ -97,8 +107,10 @@ services:
       <<: *django-env
     command: ["celery", "-A", "config", "worker", "--loglevel=info", "--concurrency=2"]
     depends_on:
-      - api
-      - redis
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_started
     volumes:
       - media_data:/app/media
 
@@ -113,8 +125,10 @@ services:
     command: ["celery", "-A", "config", "beat", "--loglevel=info",
               "--scheduler", "django_celery_beat.schedulers:DatabaseScheduler"]
     depends_on:
-      - api
-      - redis
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   frontend:
     build: ./frontend
@@ -127,6 +141,9 @@ services:
       # avec DEBUG=False, Django ne sert pas MEDIA_URL. Monte en lecture
       # seule, le frontend n'ayant aucune raison d'y ecrire.
       - media_data:/var/www/media:ro
+      # Idem pour les fichiers statiques (admin Django), rassembles par
+      # collectstatic au demarrage du service api.
+      - static_data:/var/www/static:ro
     ports:
       - "80:80"
 

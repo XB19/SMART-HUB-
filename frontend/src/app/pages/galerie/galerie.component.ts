@@ -1,10 +1,11 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IconComponent } from '../../shared/icon.component';
 import { ToastService } from '../../core/toast.service';
 import { AuthService } from '../../core/auth.service';
 import { Album, GalerieService, Photo } from '../../core/vie-interne.service';
+import { NavigationService } from '../../core/navigation.service';
 
 /** Galerie / Mémoire : albums photo de la vie du groupe. */
 @Component({
@@ -22,10 +23,6 @@ import { Album, GalerieService, Photo } from '../../core/vie-interne.service';
   </div>
 
   @if (albumOuvert(); as a) {
-    <button class="retour" (click)="fermerAlbum()">
-      <app-icon name="arrowLeft" [size]="15"/> Tous les albums
-    </button>
-
     <div class="carte anim-entree">
       <div class="entete-album">
         <div>
@@ -126,9 +123,6 @@ import { Album, GalerieService, Photo } from '../../core/vie-interne.service';
     .tete { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.4rem; }
     .sous { color: var(--txt-2); margin-top: -.3rem; font-size: .88rem; }
     .desc { font-size: .88rem; margin-top: .5rem; }
-    .retour { background: none; border: none; color: var(--bleu); cursor: pointer;
-      display: inline-flex; align-items: center; gap: .35rem; font-size: .85rem;
-      margin-bottom: .8rem; padding: 0; font-weight: 500; }
 
     .albums { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; }
     .album { background: #fff; border: 1px solid var(--bord); border-radius: var(--r);
@@ -195,7 +189,13 @@ export class GalerieComponent implements OnInit {
     private galerie: GalerieService,
     private toast: ToastService,
     public auth: AuthService,
-  ) {}
+  ) {
+    // Album ouvert : « Retour » ramène à la liste des albums.
+    inject(NavigationService).vuesLocales(
+      { ouverte: () => !!this.albumOuvert(), fermer: () => this.fermerAlbum() },
+      this.formulaireAlbum,
+    );
+  }
 
   ngOnInit(): void { this.chargerAlbums(); }
 

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, shareReplay } from 'rxjs';
+import { Observable, shareReplay, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
   Salle, Equipement, Filiale, Reservation, DisponibiliteResultat,
@@ -46,6 +46,18 @@ export class ApiService {
   }
 
   // ---------- Filiales (référence, mise en cache) ----------
+  /** Toutes les filiales, compteurs à jour — pour Administration > Filiales (sans cache). */
+  toutesLesFiliales(): Observable<Paginated<Filiale>> {
+    return this.http.get<Paginated<Filiale>>(`${this.api}/filiales/`, { params: { page_size: 200 } });
+  }
+  creerFiliale(f: Partial<Filiale>): Observable<Filiale> {
+    return this.http.post<Filiale>(`${this.api}/filiales/`, f)
+      .pipe(tap(() => this.invaliderCache('filiales')));
+  }
+  majFiliale(id: number, f: Partial<Filiale>): Observable<Filiale> {
+    return this.http.patch<Filiale>(`${this.api}/filiales/${id}/`, f)
+      .pipe(tap(() => this.invaliderCache('filiales')));
+  }
   filiales(): Observable<Paginated<Filiale>> {
     return this.cacheRef('filiales', () =>
       this.http.get<Paginated<Filiale>>(`${this.api}/filiales/`));
@@ -322,8 +334,8 @@ export class ApiService {
     return this.http.get<Paginated<Visite>>(`${this.api}/visites/`, { params: this.params(filtres) });
   }
   creerVisite(v: {
-    nom: string; prenom: string; type_piece: string; numero_piece: string; motif: string;
-    filiale: number; personne_visitee: number;
+    nom: string; prenom: string; type_piece: string; numero_piece: string; numero_badge: string;
+    motif: string; filiale: number; personne_visitee: number;
   }): Observable<Visite> {
     return this.http.post<Visite>(`${this.api}/visites/`, v);
   }

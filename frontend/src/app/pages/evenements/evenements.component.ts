@@ -1,10 +1,11 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IconComponent } from '../../shared/icon.component';
 import { ToastService } from '../../core/toast.service';
 import { AuthService } from '../../core/auth.service';
 import { Calendrier, EvenementsService } from '../../core/vie-interne.service';
+import { NavigationService } from '../../core/navigation.service';
 
 /**
  * Événements de la vie interne : cérémonies, discours, fêtes, réceptions,
@@ -197,7 +198,9 @@ export class EvenementsComponent implements OnInit {
     private evenements: EvenementsService,
     private toast: ToastService,
     public auth: AuthService,
-  ) {}
+  ) {
+    inject(NavigationService).vuesLocales(this.formulaire);
+  }
 
   ngOnInit(): void {
     const aujourdhui = new Date();

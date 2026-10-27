@@ -185,3 +185,136 @@ class ServiceAPITests(BaseOrganigramme, APITestCase):
         reponse = self.client.get(f"/api/services/{self.compta.pk}/")
         self.assertEqual(reponse.data["chef_nom"], self.chef.nom_complet)
         self.assertEqual(reponse.data["nb_membres"], 2)
+
+
+class GestionFilialesAPITests(APITestCase):
+    """Administration > Filiales : réservée à l'administrateur."""
+
+    def setUp(self):
+        self.oseor = Filiale.objects.create(nom="OSEOR SA", code="OSEOR")
+        self.admin = User.objects.create_user(
+            "admin", password="x", role=User.Role.ADMINISTRATEUR)
+        self.secretaire = User.objects.create_user(
+            "secretaire", password="x", role=User.Role.SECRETAIRE, filiale=self.oseor)
+        self.client.force_authenticate(self.admin)
+
+    def test_creation_par_l_administrateur(self):
+        reponse = self.client.post("/api/filiales/", {
+            "nom": "  KAPI   Consult ", "code": "kapi", "email": "contact@kapi.com",
+        }, format="json")
+
+        self.assertEqual(reponse.status_code, 201, reponse.data)
+        self.assertEqual((reponse.data["nom"], reponse.data["code"]), ("KAPI Consult", "KAPI"))
+        self.assertTrue(reponse.data["active"])
+
+    def test_secretaire_ne_peut_pas_creer(self):
+        self.client.force_authenticate(self.secretaire)
+        reponse = self.client.post("/api/filiales/", {"nom": "KAPI", "code": "KAPI"}, format="json")
+        self.assertEqual(reponse.status_code, 403)
+
+    def test_lecture_ouverte_a_tous(self):
+        self.client.force_authenticate(self.secretaire)
+        self.assertEqual(self.client.get("/api/filiales/").status_code, 200)
+
+    def test_doublons_refuses_sans_tenir_compte_de_la_casse(self):
+        reponse = self.client.post("/api/filiales/", {"nom": "oseor sa", "code": "oseor"}, format="json")
+        self.assertEqual(reponse.status_code, 400)
+        self.assertIn("nom", reponse.data)
+        self.assertIn("code", reponse.data)
+
+    def test_code_au_format_court(self):
+        reponse = self.client.post("/api/filiales/", {"nom": "KAPI", "code": "KA PI!"}, format="json")
+        self.assertEqual(reponse.status_code, 400)
+        self.assertIn("code", reponse.data)
+
+    def test_pas_de_suppression(self):
+        reponse = self.client.delete(f"/api/filiales/{self.oseor.pk}/")
+        self.assertEqual(reponse.status_code, 405)
+
+    def test_desactivation(self):
+        kapi = Filiale.objects.create(nom="KAPI", code="KAPI")
+        reponse = self.client.patch(f"/api/filiales/{kapi.pk}/", {"active": False}, format="json")
+        self.assertEqual(reponse.status_code, 200)
+        kapi.refresh_from_db()
+        self.assertFalse(kapi.active)
+
+    def test_filiale_d_accueil_protegee(self):
+        url = f"/api/filiales/{self.oseor.pk}/"
+        self.assertEqual(self.client.patch(url, {"code": "SIEGE"}, format="json").status_code, 400)
+        self.assertEqual(self.client.patch(url, {"active": False}, format="json").status_code, 400)
+        self.assertEqual(self.client.patch(url, {"telephone": "+228 90 00 00 00"},
+                                           format="json").status_code, 200)
+
+    def test_compteurs(self):
+        reponse = self.client.get("/api/filiales/")
+        oseor = next(f for f in reponse.data["results"] if f["code"] == "OSEOR")
+        self.assertEqual(oseor["nb_utilisateurs"], 1)
+
+
+class InitialisationPlateformeTests(TestCase):
+    """`initialiser_plateforme`, lancée à chaque démarrage du conteneur api."""
+
+    def lancer(self):
+        from io import StringIO
+        from django.core.management import call_command
+        call_command("initialiser_plateforme", stdout=StringIO())
+
+    def test_base_neuve(self):
+        from applications.aide.models import EntreeAide
+        from applications.documents.models import ConfigurationDocument, TypeDocument
+        from django_celery_beat.models import PeriodicTask
+
+        self.lancer()
+
+        accueil = Filiale.objects.get(code="OSEOR")
+        self.assertEqual(
+            ConfigurationDocument.objects.filter(filiale=accueil).count(),
+            len(TypeDocument.values))
+        self.assertTrue(EntreeAide.objects.exists())
+        self.assertTrue(PeriodicTask.objects.exists())
+
+    def test_relance_sans_rien_ecraser(self):
+        from applications.aide.models import EntreeAide
+        from applications.documents.models import ConfigurationDocument
+
+        self.lancer()
+        config = ConfigurationDocument.objects.first()
+        config.visas = [{"cle": "demandeur", "libelle": "Ajusté à la main"}]
+        config.save()
+        entree = EntreeAide.objects.first()
+        entree.reponse = "Réponse retouchée"
+        entree.save()
+
+        self.lancer()
+
+        config.refresh_from_db()
+        entree.refresh_from_db()
+        self.assertEqual(config.visas[0]["libelle"], "Ajusté à la main")
+        self.assertEqual(entree.reponse, "Réponse retouchée")
+        self.assertEqual(Filiale.objects.filter(code="OSEOR").count(), 1)
+
+    def test_jeu_de_demo_apres_initialisation(self):
+        """Le README charge le jeu de démo sur une base déjà initialisée."""
+        from io import StringIO
+        from django.core.management import call_command
+
+        self.lancer()
+        call_command("loaddata", "fixtures/donnees_test.json", stdout=StringIO())
+        self.lancer()
+
+        self.assertEqual(Filiale.objects.filter(code="OSEOR").count(), 1)
+
+
+class ConfigurationNouvelleFilialeTests(APITestCase):
+
+    def test_documents_configures_a_la_creation(self):
+        from applications.documents.models import ConfigurationDocument, TypeDocument
+
+        admin = User.objects.create_user("admin", password="x", role=User.Role.ADMINISTRATEUR)
+        self.client.force_authenticate(admin)
+        reponse = self.client.post("/api/filiales/", {"nom": "BONICI", "code": "BONICI"}, format="json")
+
+        self.assertEqual(reponse.status_code, 201)
+        self.assertEqual(
+            ConfigurationDocument.objects.filter(filiale_id=reponse.data["id"]).count(),
+            len(TypeDocument.values))
