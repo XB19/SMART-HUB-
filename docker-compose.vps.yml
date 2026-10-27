@@ -24,7 +24,13 @@ x-django-env-vps: &django-env-vps
 
 services:
   api:
-    environment: *django-env-vps
+    environment:
+      <<: *django-env-vps
+      # waitress efface sinon X-Forwarded-Proto : Django croirait chaque
+      # requête en http et redirigerait le POST de connexion vers https,
+      # rendant toute connexion impossible. Sans danger ici : l'API n'est
+      # plus exposée, seul nginx peut la joindre.
+      API_TRUSTED_PROXY: "*"
     ports: !reset []
 
   ws:

@@ -201,3 +201,21 @@ class ParametresServeurTests(TestCase):
         })
 
         self.assertEqual((hote, port, threads), ("127.0.0.1", 9000, 8))
+
+    def test_aucun_proxy_de_confiance_par_defaut(self):
+        from serve_api import parametres_proxy
+
+        self.assertEqual(parametres_proxy({}), {})
+
+    def test_proxy_de_confiance_pour_x_forwarded_proto(self):
+        """
+        Régression : sur le VPS, waitress effaçait X-Forwarded-Proto ;
+        Django (DEBUG=False) redirigeait alors le POST de connexion vers
+        https et aucun utilisateur ne pouvait se connecter.
+        """
+        from serve_api import parametres_proxy
+
+        self.assertEqual(
+            parametres_proxy({"API_TRUSTED_PROXY": "*"}),
+            {"trusted_proxy": "*", "trusted_proxy_headers": "x-forwarded-proto"},
+        )
